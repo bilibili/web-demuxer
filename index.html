@@ -126,6 +126,8 @@
         wasmLoaderPath: isDEV ? `${window.location.origin}/src/lib/ffmpeg.js` : "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/ffmpeg.min.js",
       })
 
+      window.demuxer = demuxer;
+
       document.getElementById('example-seek-btn').addEventListener('click', async (e) => {
         const file = document.getElementById('example-seek-file').files[0]
         const seekTime = document.getElementById('example-seek-time').value || 0

@@ -26,3 +26,7 @@ dist-ssr
 # wasm build file
 src/lib/*.js
 src/lib/*.wasm
+
+# test output
+playwright-report
+test-results
