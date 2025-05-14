@@ -14,24 +14,37 @@
  */
 void set_avc_codec_string(char *str, size_t str_size, AVCodecParameters *par)
 {
-
     av_strlcpy(str, "avc1", str_size);
 
     uint8_t *data = par->extradata;
     int size = par->extradata_size;
-    GetBitContext gb;
 
-    init_get_bits8(&gb, data, size);
-
-    if (!size)
+    // If no extradata is available (such as in AVI files)
+    if (!data || !size)
+    {
+        if (par->profile != AV_PROFILE_UNKNOWN && par->level != AV_LEVEL_UNKNOWN)
+        {
+            av_strlcatf(str, str_size, ".%02x%02x%02x",
+                        par->profile, 0x00, par->level); 
+        }
+        else
+        {
+            // If no profile/level info available, use baseline profile (42) and level 1.0 (28) as fallback
+            av_strlcatf(str, str_size, ".%02x%02x%02x",
+                        0x42, 0x00, 0x28);
+        }
         return;
+    }
+
+    GetBitContext gb;
+    init_get_bits8(&gb, data, size);
 
     if (size >= 4)
     {
         skip_bits(&gb, 8);
 
         uint8_t profile = get_bits(&gb, 8);
-        uint8_t profile_compat = get_bits(&gb, 8); // TODO: name
+        uint8_t profile_compat = get_bits(&gb, 8);
         uint8_t level = get_bits(&gb, 8);
 
         av_strlcatf(str, str_size, ".%02x%02x%02x",
