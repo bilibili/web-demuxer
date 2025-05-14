@@ -139,7 +139,23 @@ inline std::string safe_str(const char* str) {
 
 void gen_web_packet(WebAVPacket &web_packet, AVPacket *packet, AVStream *stream)
 {
-    double packet_timestamp = packet->pts * av_q2d(stream->time_base);
+    double packet_timestamp = 0;
+    
+    if (packet->pts != AV_NOPTS_VALUE) {
+        packet_timestamp = packet->pts * av_q2d(stream->time_base);
+    }
+    else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
+        static int64_t frame_count = 0;
+        
+        double frame_duration = (double)stream->avg_frame_rate.den / stream->avg_frame_rate.num;
+        
+        double base_time = (stream->start_time != AV_NOPTS_VALUE) ? 
+            (stream->start_time * av_q2d(stream->time_base)) : 0;
+            
+        // some videos like avi have no pts, so we need to calculate the pts
+        // from the frame count and the average frame rate
+        packet_timestamp = base_time + (frame_count++ * frame_duration);
+    }
 
     web_packet.keyframe = packet->flags & AV_PKT_FLAG_KEY;
     web_packet.timestamp = packet_timestamp;
