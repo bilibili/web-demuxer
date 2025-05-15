@@ -5,15 +5,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'html',
   use: {
-    trace: 'on-first-retry',
-    headless: process.env.CI ? true : false,
+    trace: 'on-first-retry'
   },
   webServer: {
     command: 'pnpm run dev',
-    url: 'http://localhost:5173',
+    port: 5173,
     reuseExistingServer: !process.env.CI,
   },
   projects: [
