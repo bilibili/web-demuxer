@@ -145,7 +145,7 @@ void gen_web_packet(WebAVPacket &web_packet, AVPacket *packet, AVStream *stream)
         packet_timestamp = packet->pts * av_q2d(stream->time_base);
     }
     else if (stream->avg_frame_rate.num > 0 && stream->avg_frame_rate.den > 0) {
-        static int64_t frame_count = 0;
+        int64_t frame_count = 0;
         
         double frame_duration = (double)stream->avg_frame_rate.den / stream->avg_frame_rate.num;
         
