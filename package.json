@@ -1,6 +1,6 @@
 {
   "name": "web-demuxer",
-  "version": "2.3.4",
+  "version": "2.3.5",
   "description": "Demux media files in the browser using WebAssembly, designed for WebCodecs",
   "type": "module",
   "files": [
