@@ -69,14 +69,14 @@ for (const {path: testFilePath, name} of getTestFiles()) {
     const videoPacket = await page.evaluate(async (inputFileSelector) => {
       const file = (document.querySelector(inputFileSelector) as HTMLInputElement).files![0];
       await window.demuxer.load(file);
-      return await window.demuxer.seekVideoPacket(1);
+      return await window.demuxer.seekVideoPacket(1, 4);
     }, inputFileSelector);
 
     expect(videoPacket).toBeDefined();
     expect(videoPacket.size).toBeGreaterThan(0);
     expect(videoPacket.data).toBeDefined();
     expect(videoPacket.data.buffer).toBeDefined();
-    expect(videoPacket.timestamp).toBeGreaterThanOrEqual(0);
+    expect(videoPacket.timestamp).toBeGreaterThan(0);
     expect(videoPacket.duration).toBeGreaterThan(0);
   });
 
@@ -87,7 +87,7 @@ for (const {path: testFilePath, name} of getTestFiles()) {
     const audioPacket = await page.evaluate(async (inputFileSelector) => {
       const file = (document.querySelector(inputFileSelector) as HTMLInputElement).files![0];
       await window.demuxer.load(file);
-      return await window.demuxer.seekAudioPacket(1);
+      return await window.demuxer.seekAudioPacket(1, 4);
     }, inputFileSelector);
 
     expect(audioPacket).toBeDefined();
@@ -95,6 +95,6 @@ for (const {path: testFilePath, name} of getTestFiles()) {
     expect(audioPacket.data).toBeDefined();
     expect(audioPacket.data.buffer).toBeDefined();
     expect(audioPacket.data.buffer.byteLength).toBeGreaterThan(0);
-    expect(audioPacket.timestamp).toBeGreaterThanOrEqual(0);
+    expect(audioPacket.timestamp).toBeGreaterThan(0);
   });
 }

@@ -140,12 +140,11 @@ inline std::string safe_str(const char* str) {
 void gen_web_packet(WebAVPacket &web_packet, AVPacket *packet, AVStream *stream)
 {
     double packet_timestamp = 0;
-    bool has_b_frames = stream->codecpar->video_delay > 0;
-    
+
     if (packet->pts != AV_NOPTS_VALUE) {
         packet_timestamp = packet->pts * av_q2d(stream->time_base);
     }
-    else if (packet->dts != AV_NOPTS_VALUE && !has_b_frames) {
+    else if (packet->dts != AV_NOPTS_VALUE) {
         // Some formats such as AVI do not have PTS and use DTS instead
         packet_timestamp = packet->dts * av_q2d(stream->time_base);
     }
