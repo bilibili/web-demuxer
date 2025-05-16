@@ -597,35 +597,21 @@ int read_av_packet(std::string filename, double start, double end, int type, int
     {
         if (packet->stream_index == stream_index)
         {
-            if (end > 0)
-            {
-                int64_t end_timestamp = (int64_t)(end * AV_TIME_BASE);
-                int64_t rescaled_end_timestamp = av_rescale_q(end_timestamp, AV_TIME_BASE_Q, fmt_ctx->streams[stream_index]->time_base);
+            WebAVPacket web_packet;
 
-                if (packet->pts > rescaled_end_timestamp)
-                {
-                    break;
-                }
+            gen_web_packet(web_packet, packet, fmt_ctx->streams[stream_index]);
+
+            if (end > 0 && web_packet.timestamp > end)
+            {
+                break;
             }
 
-            if (packet)
+            // call js method to send packet
+            val result = js_caller.call<val>("sendAVPacket", web_packet).await();
+            int send_result = result.as<int>();
+
+            if (send_result == 0)
             {
-                WebAVPacket web_packet;
-
-                gen_web_packet(web_packet, packet, fmt_ctx->streams[stream_index]);
-
-                // call js method to send packet
-                val result = js_caller.call<val>("sendAVPacket", web_packet).await();
-                int send_result = result.as<int>();
-
-                if (send_result == 0)
-                {
-                    break;
-                }
-            }
-            else
-            {
-                av_log(NULL, AV_LOG_ERROR, "Failed to get av packet at timestamp\n");
                 break;
             }
         }
