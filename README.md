@@ -12,7 +12,7 @@ WebCodecs only provide the ability to decode, but not to demux. mp4box.js is coo
 
 ## Features
 - 🪄 Specifically designed for WebCodecs, the API is very friendly for WebCodecs development, you can easily realize the media file demux.
-- 📦 One-time support for a variety of media formats, such as mov/mp4/mkv/webm/flv/m4v/wmv/avi, etc.
+- 📦 One-time support for a variety of media formats, such as mov/mp4/mkv/webm/flv/m4v/wmv/avi/ts, etc.
 - 🧩 Support for customized packaging, you can adjust the configuration, packaged in a specified format demuxer
 
 ## Install
@@ -272,7 +272,7 @@ Destroys the instance and releases the worker.
 
 ## Custom Demuxer
 Currently, two versions of the demuxer are provided by default to support different formats:
-- `dist/wasm-files/ffmpeg.js`: Full version (gzip: 996 kB), larger in size, supports mov, mp4, m4a, 3gp, 3g2, mj2, avi, flv, matroska, webm, m4v, mpeg, asf
+- `dist/wasm-files/ffmpeg.js`: Full version (gzip: 996 kB), larger in size, supports mov, mp4, m4a, 3gp, 3g2, mj2, avi, flv, matroska, webm, m4v, mpeg, asf, mpegts
 - `dist/wasm-files/ffmpeg-mini.js`: Minimalist version (gzip: 456 kB), smaller in size, only supports mov, mp4, m4a, 3gp, 3g2, matroska, webm, m4v
 > If you want to use a smaller size version, you can use version 1.0 of web-demuxer, the lite version is only 115KB  
 > Version 1.0 is written in C, focuses on WebCodecs, and is small in size, while version 2.0 uses C++ Embind, which provides richer media information output, is easier to maintain, and is large in size

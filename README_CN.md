@@ -12,7 +12,7 @@ WebCodecs只提供了decode的能力，但没有提供demux的能力。有一些
 
 ## 特征
 - 🪄 专门为WebCodecs设计，API对于WebCodecs开发而言十分友好，可以轻松实现媒体文件的解封装
-- 📦 一次性支持多种媒体格式，比如mov/mp4/mkv/webm/flv/m4v/wmv/avi等等
+- 📦 一次性支持多种媒体格式，比如mov/mp4/mkv/webm/flv/m4v/wmv/avi/ts等等
 - 🧩 支持自定义打包，可以调整配置，打包出指定格式的demuxer
 
 ## 安装
@@ -272,7 +272,7 @@ destroy(): void
 
 ## 自定义Demuxer
 目前默认提供两个版本的demuxer, 用于支持不同的格式:
-- `dist/wasm-files/ffmpeg.js`: 完整版(gzip: 996 kB), 体积较大，支持mov,mp4,m4a,3gp,3g2,mj2,avi,flv,matroska,webm,m4v,mpeg,asf
+- `dist/wasm-files/ffmpeg.js`: 完整版(gzip: 996 kB), 体积较大，支持mov,mp4,m4a,3gp,3g2,mj2,avi,flv,matroska,webm,m4v,mpeg,asf,mpegts
 - `dist/wasm-files/ffmpeg-mini.js`: 精简版本(gzip: 456 kB)，体积小，仅支持mov,mp4,m4a,3gp,3g2,matroska,webm,m4v
 > 如果你想使用体积更小的版本，可以使用1.0版本的web-demuxer，精简版本仅115KB  
 > 1.0版本使用C编写，聚焦WebCodecs，体积小，2.0版本使用C++ Embind，提供了更丰富的媒体信息输出，更易维护，体积大
