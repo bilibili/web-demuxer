@@ -1,7 +1,7 @@
 import { AVLogLevel, AVMediaType, AVSeekFlag } from "./avutil";
 
-export enum FFMpegWorkerMessageType {
-  FFmpegWorkerLoaded = "FFmpegWorkerLoaded",
+export enum WasmWorkerMessageType {
+  WasmWorkerLoaded = "WasmWorkerLoaded",
   WASMRuntimeInitialized = "WASMRuntimeInitialized",
   LoadWASM = "LoadWASM",
   GetAVPacket = "GetAVPacket",
@@ -16,7 +16,7 @@ export enum FFMpegWorkerMessageType {
   SetAVLogLevel = "SetAVLogLevel",
 }
 
-export type FFMpegWorkerMessageData =
+export type WasmWorkerMessageData =
   | GetAVPacketMessageData
   | GetAVPacketsMessageData
   | GetAVStreamMessageData
@@ -60,7 +60,7 @@ export interface ReadAVPacketMessageData {
 }
 
 export interface LoadWASMMessageData {
-  wasmLoaderPath: string;
+  wasmFilePath: string;
 }
 
 export interface GetMediaInfoMessageData {
@@ -71,8 +71,8 @@ export interface SetAVLogLevelMessageData {
   level: AVLogLevel;
 }
 
-export interface FFMpegWorkerMessage {
-  type: FFMpegWorkerMessageType;
-  data: FFMpegWorkerMessageData;
+export interface WasmWorkerMessage {
+  type: WasmWorkerMessageType;
+  data: WasmWorkerMessageData;
   msgId: number;
 }

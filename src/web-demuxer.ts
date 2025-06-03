@@ -2,53 +2,59 @@ import {
   AVLogLevel,
   AVMediaType,
   AVSeekFlag,
-  FFMpegWorkerMessageData,
-  FFMpegWorkerMessageType,
+  WasmWorkerMessageData,
+  WasmWorkerMessageType,
   WebAVPacket,
   WebAVStream,
   WebMediaInfo,
 } from "./types";
-import FFmpegWorker from "./ffmpeg.worker.ts?worker&inline";
+import WasmWorker from "./wasm.worker.ts?worker&inline";
 
-const TIME_BASE = 1000000;
+const TIME_BASE = 1e6;
 
 export interface WebDemuxerOptions {
   /**
-   * path to the wasm loader
+   * wasm file path
    */
-  wasmLoaderPath: string;
+  wasmFilePath: string;
 }
 
 /**
  * WebDemuxer
  * 
- * Timeline:
- * FFmpegWorkerLoaded => LoadWASM => WASMRuntimeInitialized
+ * A class to demux media files in the browser using WebAssembly.
+ *
+ * @example
+ * ```typescript
+ * const demuxer = new WebDemuxer({ wasmFilePath: '/path/to/web-demuxer.wasm' });
+ * await demuxer.load(file);
+ * const packet = await demuxer.seekVideoPacket(10); // seek to 10s
+ * ```
  */
 export class WebDemuxer {
-  private ffmpegWorker: Worker;
-  private ffmpegWorkerLoadStatus: Promise<void>;
+  private wasmWorker: Worker;
+  private wasmWorkerLoadStatus: Promise<void>;
   private msgId: number;
 
   public source?: File | string;
 
   constructor(options: WebDemuxerOptions) {
-    this.ffmpegWorker = new FFmpegWorker();
-    this.ffmpegWorkerLoadStatus = new Promise((resolve, reject) => {
-      this.ffmpegWorker.addEventListener("message", (e) => {
+    this.wasmWorker = new WasmWorker();
+    this.wasmWorkerLoadStatus = new Promise((resolve, reject) => {
+      this.wasmWorker.addEventListener("message", (e) => {
         const { type, errMsg } = e.data;
 
-        if (type === FFMpegWorkerMessageType.FFmpegWorkerLoaded) {
-          this.post(FFMpegWorkerMessageType.LoadWASM, {
-            wasmLoaderPath: options.wasmLoaderPath,
+        if (type === WasmWorkerMessageType.WasmWorkerLoaded) {
+          this.post(WasmWorkerMessageType.LoadWASM, {
+            wasmFilePath: options.wasmFilePath,
           });
         }
 
-        if (type === FFMpegWorkerMessageType.WASMRuntimeInitialized) {
+        if (type === WasmWorkerMessageType.WASMRuntimeInitialized) {
           resolve();
         }
 
-        if (type === FFMpegWorkerMessageType.LoadWASM && errMsg) {
+        if (type === WasmWorkerMessageType.LoadWASM && errMsg) {
           reject(errMsg);
         }
       });
@@ -58,18 +64,18 @@ export class WebDemuxer {
   }
 
   private post(
-    type: FFMpegWorkerMessageType,
-    data?: FFMpegWorkerMessageData,
+    type: WasmWorkerMessageType,
+    data?: WasmWorkerMessageData,
     msgId?: number,
   ) {
-    this.ffmpegWorker.postMessage({
+    this.wasmWorker.postMessage({
       type,
       msgId: msgId ?? this.msgId++,
       data,
     });
   }
 
-  private getFromWorker<T>(type: FFMpegWorkerMessageType, msgData: FFMpegWorkerMessageData): Promise<T> {
+  private getFromWorker<T>(type: WasmWorkerMessageType, msgData: WasmWorkerMessageData): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.source) {
         reject("source is not loaded. call load() first");
@@ -84,11 +90,11 @@ export class WebDemuxer {
           } else {
             resolve(data.result);
           }
-          this.ffmpegWorker.removeEventListener("message", msgListener);
+          this.wasmWorker.removeEventListener("message", msgListener);
         }
       };
 
-      this.ffmpegWorker.addEventListener("message", msgListener);
+      this.wasmWorker.addEventListener("message", msgListener);
       this.post(type, msgData, msgId);
     });
   }
@@ -99,7 +105,7 @@ export class WebDemuxer {
    * @returns load status
    */
   public async load(source: File | string) {
-    await this.ffmpegWorkerLoadStatus;
+    await this.wasmWorkerLoadStatus;
 
     this.source = source;
   }
@@ -110,7 +116,7 @@ export class WebDemuxer {
    */
   public destroy() {
     this.source = undefined;
-    this.ffmpegWorker.terminate();
+    this.wasmWorker.terminate();
   }
 
   // ================ base api ================
@@ -124,7 +130,7 @@ export class WebDemuxer {
     streamType = AVMediaType.AVMEDIA_TYPE_VIDEO,
     streamIndex = -1,
   ): Promise<WebAVStream> {
-    return this.getFromWorker(FFMpegWorkerMessageType.GetAVStream, {
+    return this.getFromWorker(WasmWorkerMessageType.GetAVStream, {
       source: this.source!,
       streamType,
       streamIndex,
@@ -136,7 +142,7 @@ export class WebDemuxer {
    * @returns WebAVStream[]
    */
   public getAVStreams(): Promise<WebAVStream[]> {
-    return this.getFromWorker(FFMpegWorkerMessageType.GetAVStreams, {
+    return this.getFromWorker(WasmWorkerMessageType.GetAVStreams, {
       source: this.source!,
     });
   }
@@ -146,7 +152,7 @@ export class WebDemuxer {
    * @returns WebMediaInfo
    */
   public getMediaInfo(): Promise<WebMediaInfo> {
-    return this.getFromWorker(FFMpegWorkerMessageType.GetMediaInfo, {
+    return this.getFromWorker(WasmWorkerMessageType.GetMediaInfo, {
       source: this.source!,
     });
   }
@@ -165,7 +171,7 @@ export class WebDemuxer {
     streamIndex = -1,
     seekFlag = AVSeekFlag.AVSEEK_FLAG_BACKWARD
   ): Promise<WebAVPacket> {
-    return this.getFromWorker(FFMpegWorkerMessageType.GetAVPacket, {
+    return this.getFromWorker(WasmWorkerMessageType.GetAVPacket, {
       source: this.source!,
       time,
       streamType,
@@ -184,7 +190,7 @@ export class WebDemuxer {
     time: number,
     seekFlag = AVSeekFlag.AVSEEK_FLAG_BACKWARD
   ): Promise<WebAVPacket[]> {
-    return this.getFromWorker(FFMpegWorkerMessageType.GetAVPackets, {
+    return this.getFromWorker(WasmWorkerMessageType.GetAVPackets, {
       source: this.source!,
       time,
       seekFlag
@@ -224,25 +230,25 @@ export class WebDemuxer {
             const data = e.data;
 
             if (
-              data.type === FFMpegWorkerMessageType.ReadAVPacket &&
+              data.type === WasmWorkerMessageType.ReadAVPacket &&
               data.msgId === msgId
             ) {
               if (data.errMsg) {
                 controller.error(data.errMsg);
-                this.ffmpegWorker.removeEventListener("message", msgListener);
+                this.wasmWorker.removeEventListener("message", msgListener);
               } else {
                 // noop
               }
             }
 
             if (
-              data.type === FFMpegWorkerMessageType.AVPacketStream &&
+              data.type === WasmWorkerMessageType.AVPacketStream &&
               data.msgId === msgId
             ) {
               if (data.result && !cancelResolver) {
                 controller.enqueue(data.result);
               } else {
-                this.ffmpegWorker.removeEventListener("message", msgListener);
+                this.wasmWorker.removeEventListener("message", msgListener);
                 // only close if the stream has not been cancelled from outside
                 if (cancelResolver) {
                   cancelResolver();
@@ -253,8 +259,8 @@ export class WebDemuxer {
             }
           };
 
-          this.ffmpegWorker.addEventListener("message", msgListener);
-          this.post(FFMpegWorkerMessageType.ReadAVPacket, {
+          this.wasmWorker.addEventListener("message", msgListener);
+          this.post(WasmWorkerMessageType.ReadAVPacket, {
             source: this.source,
             start,
             end,
@@ -267,7 +273,7 @@ export class WebDemuxer {
           // first pull called by read don't send read next message
           if (pullCounter > 0) {
             this.post(
-              FFMpegWorkerMessageType.ReadNextAVPacket,
+              WasmWorkerMessageType.ReadNextAVPacket,
               undefined,
               msgId,
             );
@@ -277,7 +283,7 @@ export class WebDemuxer {
         cancel: () => {
           return new Promise((resolve) => {
             cancelResolver = resolve;
-            this.post(FFMpegWorkerMessageType.StopReadAVPacket, undefined, msgId);
+            this.post(WasmWorkerMessageType.StopReadAVPacket, undefined, msgId);
           });
         },
       },
@@ -290,7 +296,7 @@ export class WebDemuxer {
    * @param level log level
    */
   public setLogLevel(level: AVLogLevel) {
-    return this.getFromWorker(FFMpegWorkerMessageType.SetAVLogLevel, { level })
+    return this.getFromWorker(WasmWorkerMessageType.SetAVLogLevel, { level })
   }
 
   // ================ convenience api ================

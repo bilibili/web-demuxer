@@ -63,10 +63,10 @@ ffmpeg-lib-dev:
 	emmake make
 
 web-demuxer: 
-	$(WEB_DEMUXER_ARGS) -o ./src/lib/ffmpeg.js
+	$(WEB_DEMUXER_ARGS) -o ./src/lib/web-demuxer.js
 	
 web-demuxer-mini:
-	$(WEB_DEMUXER_ARGS) -o ./src/lib/ffmpeg-mini.js
+	$(WEB_DEMUXER_ARGS) -o ./src/lib/web-demuxer-mini.js
 
 web-demuxer-dev:
-	$(WEB_DEMUXER_ARGS) $(WEB_DEMUXER_DEV_ARGS) -o ./src/lib/ffmpeg.js
+	$(WEB_DEMUXER_ARGS) $(WEB_DEMUXER_DEV_ARGS) -o ./src/lib/web-demuxer.js

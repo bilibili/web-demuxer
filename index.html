@@ -123,7 +123,7 @@
       const { WebDemuxer } = isDEV ? await import('./src') : await import('https://cdn.jsdelivr.net/npm/web-demuxer/+esm')
 
       const demuxer = new WebDemuxer({
-        wasmLoaderPath: isDEV ? `${window.location.origin}/src/lib/ffmpeg.js` : "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/ffmpeg.min.js",
+        wasmFilePath: isDEV ? `${window.location.origin}/src/lib/web-demuxer.wasm` : "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/web-demuxer.wasm",
       })
 
       window.demuxer = demuxer;

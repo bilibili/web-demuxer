@@ -1,9 +1,11 @@
-import { FFMpegWorkerMessageType, GetAVPacketMessageData, GetAVPacketsMessageData, GetAVStreamMessageData, GetAVStreamsMessageData, GetMediaInfoMessageData, LoadWASMMessageData, ReadAVPacketMessageData, SetAVLogLevelMessageData, WebAVPacket, WebAVStream } from "./types";
+import { WasmWorkerMessageType, GetAVPacketMessageData, GetAVPacketsMessageData, GetAVStreamMessageData, GetAVStreamsMessageData, GetMediaInfoMessageData, LoadWASMMessageData, ReadAVPacketMessageData, SetAVLogLevelMessageData, WebAVPacket, WebAVStream } from "./types";
+// @ts-ignore
+import createModule from './lib/web-demuxer.js'
 
 let Module: any; // TODO: rm any
 
 self.postMessage({
-  type: "FFmpegWorkerLoaded",
+  type: WasmWorkerMessageType.WasmWorkerLoaded
 });
 
 self.addEventListener("message", async function (e) {
@@ -40,9 +42,20 @@ self.addEventListener("message", async function (e) {
 });
 
 async function handleLoadWASM(data: LoadWASMMessageData) {
-  const { wasmLoaderPath } = data || {};
-  const ModuleLoader = await import(/* @vite-ignore */wasmLoaderPath);
-  Module = await ModuleLoader.default();
+  const { wasmFilePath } = data || {};
+
+  Module = await createModule({
+    locateFile:(path: string, prefix: string) => {
+      if (path.endsWith('.wasm') && wasmFilePath) {
+        return wasmFilePath;
+      }
+
+      return prefix + path;
+    },
+    onRuntimeInitialized: () => {
+      self.postMessage({ type: WasmWorkerMessageType.WASMRuntimeInitialized });
+    }
+  })
 }
 
 function handleGetAVStream(data: GetAVStreamMessageData, msgId: number) {
@@ -51,7 +64,7 @@ function handleGetAVStream(data: GetAVStreamMessageData, msgId: number) {
 
   self.postMessage(
     {
-      type: FFMpegWorkerMessageType.GetAVStream,
+      type: WasmWorkerMessageType.GetAVStream,
       msgId,
       result,
     },
@@ -65,7 +78,7 @@ function handleGetAVStreams(data: GetAVStreamsMessageData, msgId: number) {
 
   self.postMessage(
     {
-      type: FFMpegWorkerMessageType.GetAVStreams,
+      type: WasmWorkerMessageType.GetAVStreams,
       msgId,
       result,
     },
@@ -79,7 +92,7 @@ function handleGetMediaInfo(data: GetMediaInfoMessageData, msgId: number) {
 
   self.postMessage(
     {
-      type: FFMpegWorkerMessageType.GetMediaInfo,
+      type: WasmWorkerMessageType.GetMediaInfo,
       msgId,
       result,
     },
@@ -93,7 +106,7 @@ function handleGetAVPacket(data: GetAVPacketMessageData, msgId: number) {
 
   self.postMessage(
     {
-      type: FFMpegWorkerMessageType.GetAVPacket,
+      type: WasmWorkerMessageType.GetAVPacket,
       msgId,
       result,
     },
@@ -107,7 +120,7 @@ function handleGetAVPackets(data: GetAVPacketsMessageData, msgId: number) {
 
   self.postMessage(
     {
-      type: FFMpegWorkerMessageType.GetAVPackets,
+      type: WasmWorkerMessageType.GetAVPackets,
       msgId,
       result,
     },
@@ -128,7 +141,7 @@ async function handleReadAVPacket(data: ReadAVPacketMessageData, msgId: number) 
   );
 
   self.postMessage({
-    type: FFMpegWorkerMessageType.ReadAVPacket,
+    type: WasmWorkerMessageType.ReadAVPacket,
     msgId,
     result,
   });
