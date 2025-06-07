@@ -245,3 +245,25 @@ Parameters:
 destroy(): void
 ```
 Destroys the instance and releases the worker.
+
+## Custom Demuxer
+Currently, two versions of the demuxer are provided by default to support different formats:
+- `dist/wasm-files/ffmpeg.js`: Full version (gzip: 996 kB), larger in size, supports mov, mp4, m4a, 3gp, 3g2, mj2, avi, flv, matroska, webm, m4v, mpeg, asf, mpegts
+- `dist/wasm-files/ffmpeg-mini.js`: Minimalist version (gzip: 456 kB), smaller in size, only supports mov, mp4, m4a, 3gp, 3g2, matroska, webm, m4v
+> If you want to use a smaller size version, you can use version 1.0 of web-demuxer, the lite version is only 115KB  
+> Version 1.0 is written in C, focuses on WebCodecs, and is small in size, while version 2.0 uses C++ Embind, which provides richer media information output, is easier to maintain, and is large in size
+
+You can also implement a demuxer for specific formats through custom configuration:
+
+First, modify the `enable-demuxer` configuration in the `Makefile`
+```makefile
+DEMUX_ARGS = \
+    --enable-demuxer=mov,mp4,m4a,3gp,3g2,mj2,avi,flv,matroska,webm,m4v,mpeg,asf
+```
+Then execute `npm run dev:docker:arm64` (if on Windows, please execute `npm run dev:docker:x86_64`) to start the Docker environment.
+
+Finally, execute `npm run build:wasm` to build the demuxer for the specified formats.
+
+## License
+This project is primarily licensed under the MIT License, covering most of the codebase.  
+The `lib/` directory includes code derived from FFmpeg, which is licensed under the LGPL License.
