@@ -33,9 +33,12 @@ npm install web-demuxer
 import { WebDemuxer } from "web-demuxer"
 
 const demuxer = new WebDemuxer({
-  // ⚠️ you need to put the dist/wasm-files file in the npm package into a static directory like public
-  // making sure that the js and wasm in wasm-files are in the same directory
-  wasmLoaderPath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/ffmpeg.min.js",
+  // ⚠️ Optional parameter for custom WASM file location
+  // When omitted, it defaults to looking for WASM files in the same directory as the script file.
+  // We recommend placing the WASM file (web-demuxer.wasm from npm package's dist/wasm-files/) 
+  // in your project's static directory (e.g., public folder).
+  // Alternatively, you can specify a CDN path like this:
+  wasmFilePath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/web-demuxer.wasm",
 })
 
 // Take the example of seeking a video frame at a specified point in time
@@ -44,8 +47,8 @@ async function seek(file, time) {
   await demuxer.load(file);
 
   // 2. demux video file and generate WebCodecs needed VideoDecoderConfig and EncodedVideoChunk
-  const videoDecoderConfig = await demuxer.getVideoDecoderConfig();
-  const videoChunk = await demuxer.seekEncodedVideoChunk(time);
+  const videoDecoderConfig = await demuxer.getDecoderConfig('video');
+  const videoEncodedChunk = await demuxer.seek('video', time);
 
   // 3. use WebCodecs to decode frame
   const decoder = new VideoDecoder({
@@ -59,7 +62,7 @@ async function seek(file, time) {
   });
 
   decoder.configure(videoDecoderConfig);
-  decoder.decode(videoChunk);
+  decoder.decode(videoEncodedChunk);
   decoder.flush();
 }
 ```
@@ -70,14 +73,13 @@ async function seek(file, time) {
 
 ## API
 ```typescript
-new WebDemuxer(options: WebDemuxerOptions)
+new WebDemuxer(options?: WebDemuxerOptions)
 ```
 Creates a new instance of `WebDemuxer`.
 
 Parameters:
-- `options`: Required, configuration options.
-  - `wasmLoaderPath`: Required, the path to the corresponding JavaScript loader file for wasm (corresponding to the `ffmpeg.js` or `ffmpeg-mini.js` in the `dist/wasm-files` directory of the npm package).
-  > ⚠️ You must ensure that the wasm and JavaScript loader files are placed in the same accessible directory, the JavaScript loader will default to requesting the wasm file in the same directory.
+- `options`: Optional, configuration options.
+  - `wasmFilePath`: Optional, customize the WASM file path, it defaults to looking for WASM files in the same directory as the script file.
 
 ```typescript
 load(source: File | string): Promise<void>
@@ -88,90 +90,33 @@ Parameters:
   - `source`: Required, support the `File` object or file URL to be processed.
 
 ```typescript
-getVideoDecoderConfig(): Promise<VideoDecoderConfig>
+getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>
 ```
-Parses the video stream to obtain the `VideoDecoderConfig` of the file, and the return value can be directly used as an argument for the `configure` method of `VideoDecoder`.
-
-```typescript
-getAudioDecoderConfig(): Promise<AudioDecoderConfig>
-```
-Parses the audio stream to obtain the `AudioDecoderConfig` of the file, and the return value can be directly used as an argument for the `configure` method of `AudioDecoder`.
-
-```typescript
-seekEncodedVideoChunk(time: number, seekFlag?: AVSeekFlag): Promise<EncodedVideoChunk>
-```
-Retrieves the video data at the specified time point (default keyframe), and the return value can be directly used as an argument for the `decode` method of `VideoDecoder`.
+Get decoder configuration for WebCodecs based on media type ('video' or 'audio'). Returns `VideoDecoderConfig` or `AudioDecoderConfig` that can be used directly with WebCodecs.
 
 Parameters:
-- `time`: Required, in seconds.
-- `seekFlag`: The seek flag, defaults to 1 (seek backward). See `AVSeekFlag` for more details.
+- `type`: Required, media type ('video' or 'audio')
 
 ```typescript
-seekEncodedAudioChunk(time: number, seekFlag?: AVSeekFlag): Promise<EncodedAudioChunk>
+seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>
 ```
-Retrieves the audio data at the specified time point, and the return value can be directly used as an argument for the `decode` method of `AudioDecoder`.
+Seek and return encoded chunk for WebCodecs. Returns `EncodedVideoChunk` or `EncodedAudioChunk` based on media type.
 
 Parameters:
-- `time`: Required, in seconds.
-- `seekFlag`: The seek flag, defaults to 1 (seek backward). See `AVSeekFlag` for more details.
+- `type`: Required, media type ('video' or 'audio')
+- `time`: Required, unit is s
+- `seekFlag`: Seek flag, default value is 1 (backward seek). See `AVSeekFlag` for details.
 
 ```typescript
-readAVPacket(start?: number, end?: number, streamType?: AVMediaType, streamIndex?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>
+read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>
 ```
-Returns a `ReadableStream` for streaming packet data.
+Read encoded chunks as a stream for WebCodecs. Returns `ReadableStream` of `EncodedVideoChunk` or `EncodedAudioChunk`.
 
 Parameters:
-- `start`: The start time for reading, in seconds, defaults to 0, reading packets from the beginning.
-- `end`: The end time for reading, in seconds, defaults to 0, reading until the end of the file.
-- `streamType`: The type of media stream, defaults to 0, which is the video stream. 1 is audio stream. See `AVMediaType` for more details.
-- `streamIndex`: The index of the media stream, defaults to -1, which is to automatically select.
-- `seekFlag`: The seek flag, defaults to 1 (seek backward). See `AVSeekFlag` for more details.
-
-Simplified methods based on the semantics of `readAVPacket`:
-- `readVideoPacket(start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>`
-- `readAudioPacket(start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>`
-
-```typescript
-getAVStream(streamType?: AVMediaType, streamIndex?: number): Promise<WebAVStream>
-```
-Gets information about a specified stream in the media file.
-
-Parameters:
-- `streamType`: The type of media stream, defaults to 0, which is the video stream. 1 is audio stream. See `AVMediaType` for more details.
-- `streamIndex`: The index of the media stream, defaults to -1, which is to automatically select.
-
-Simplified methods based on the semantics of `getAVStream`:
-- `getVideoStream(streamIndex?: number): Promise<WebAVStream>`
-- `getAudioStream(streamIndex?: number): Promise<WebAVStream>`
-
-```typescript
-getAVStreams(): Promise<WebAVStream[]>
-```
-Get all streams in the media file.
-
-```typescript
-getAVPacket(time: number, streamType?: AVMediaType, streamIndex?: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>
-```
-Gets the data at a specified time point in the media file.
-
-Parameters:
-- `time`: Required, in seconds.
-- `streamType`: The type of media stream, defaults to 0, which is the video stream. 1 is audio stream. See `AVMediaType` for more details.
-- `streamIndex`: The index of the media stream, defaults to -1, which is to automatically select.
-- `seekFlag`: The seek flag, defaults to 1 (seek backward). See `AVSeekFlag` for more details.
-
-Simplified methods based on the semantics of `getAVPacket`:
-- `seekVideoPacket(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>`
-- `seekAudioPacket(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>`
-
-```typescript
-getAVPackets(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket[]>
-```
-Simultaneously retrieves packet data on all streams at a certain time point and returns in the order of the stream array.
-
-Parameters:
-- `time`: Required, in seconds.
-- `seekFlag`: The seek flag, defaults to 1 (seek backward). See `AVSeekFlag` for more details.
+- `type`: Required, media type ('video' or 'audio')
+- `start`: Optional, start time in seconds (default: 0)
+- `end`: Optional, end time in seconds (default: 0, read till end)
+- `seekFlag`: Optional, seek flag (default: AVSEEK_FLAG_BACKWARD)
 
 ```typescript
 getMediaInfo(): Promise<WebMediaInfo> // 2.0 New
@@ -260,6 +205,37 @@ Get the media information of a file, the output is referenced from `ffprobe`
 ```
 
 ```typescript
+getMediaStream(type: MediaType, streamIndex?: number): Promise<WebAVStream>
+```
+Get information about a media stream (video or audio) in the media file.
+
+Parameters:
+- `type`: Required, the type of media stream ('video' or 'audio')
+- `streamIndex`: Optional, the index of the media stream
+
+```typescript
+seekMediaPacket(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>
+```
+Retrieves the media data at the specified time point.
+
+Parameters:
+- `type`: Required, the type of media ('video' or 'audio')
+- `time`: Required, in seconds
+- `seekFlag`: Optional, seek flag, defaults to 1 (backward seek). See `AVSeekFlag` for details.
+
+```typescript
+readMediaPacket(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>
+```
+Returns a `ReadableStream` for streaming media packet data.
+
+Parameters:
+- `type`: Required, the type of media ('video' or 'audio')
+- `start`: Optional, start time in seconds (default: 0)
+- `end`: Optional, end time in seconds (default: 0, read till end)
+- `seekFlag`: Optional, seek flag (default: AVSEEK_FLAG_BACKWARD)
+
+
+```typescript
 setLogLevel(level: AVLogLevel) // 2.0 New
 ```
 Parameters:
@@ -269,25 +245,3 @@ Parameters:
 destroy(): void
 ```
 Destroys the instance and releases the worker.
-
-## Custom Demuxer
-Currently, two versions of the demuxer are provided by default to support different formats:
-- `dist/wasm-files/ffmpeg.js`: Full version (gzip: 996 kB), larger in size, supports mov, mp4, m4a, 3gp, 3g2, mj2, avi, flv, matroska, webm, m4v, mpeg, asf, mpegts
-- `dist/wasm-files/ffmpeg-mini.js`: Minimalist version (gzip: 456 kB), smaller in size, only supports mov, mp4, m4a, 3gp, 3g2, matroska, webm, m4v
-> If you want to use a smaller size version, you can use version 1.0 of web-demuxer, the lite version is only 115KB  
-> Version 1.0 is written in C, focuses on WebCodecs, and is small in size, while version 2.0 uses C++ Embind, which provides richer media information output, is easier to maintain, and is large in size
-
-You can also implement a demuxer for specific formats through custom configuration:
-
-First, modify the `enable-demuxer` configuration in the `Makefile`
-```makefile
-DEMUX_ARGS = \
-    --enable-demuxer=mov,mp4,m4a,3gp,3g2,mj2,avi,flv,matroska,webm,m4v,mpeg,asf
-```
-Then execute `npm run dev:docker:arm64` (if on Windows, please execute `npm run dev:docker:x86_64`) to start the Docker environment.
-
-Finally, execute `npm run build:wasm` to build the demuxer for the specified formats.
-
-## License
-This project is primarily licensed under the MIT License, covering most of the codebase.  
-The `lib/` directory includes code derived from FFmpeg, which is licensed under the LGPL License.
