@@ -7,6 +7,11 @@ import {
   WebAVPacket,
   WebAVStream,
   WebMediaInfo,
+  MediaType,
+  MediaTypeToChunk,
+  MediaTypeToConfig,
+  MediaTypes,
+  MEDIA_TYPE_TO_AVMEDIA_TYPE,
 } from "./types";
 import WasmWorker from "./wasm.worker.ts?worker&inline";
 
@@ -28,7 +33,7 @@ export interface WebDemuxerOptions {
  * ```typescript
  * const demuxer = new WebDemuxer();
  * await demuxer.load(file);
- * const packet = await demuxer.seekVideoPacket(10);
+ * const encodedChunk = await demuxer.seek('video', 10);
  * ```
  */
 export class WebDemuxer {
@@ -38,7 +43,7 @@ export class WebDemuxer {
 
   public source?: File | string;
 
-  constructor(options: WebDemuxerOptions) {
+  constructor(options?: WebDemuxerOptions) {
     this.wasmWorker = new WasmWorker({
       name: 'web-demuxer'
     });
@@ -48,7 +53,7 @@ export class WebDemuxer {
 
         if (type === WasmWorkerMessageType.WasmWorkerLoaded) {
           this.post(WasmWorkerMessageType.LoadWASM, {
-            wasmFilePath: options.wasmFilePath,
+            wasmFilePath: options?.wasmFilePath,
           });
         }
 
@@ -121,7 +126,18 @@ export class WebDemuxer {
     this.wasmWorker.terminate();
   }
 
-  // ================ base api ================
+  // ================ Base API ================
+
+  /**
+   * Get file media info
+   * @returns WebMediaInfo
+   */
+  public getMediaInfo(): Promise<WebMediaInfo> {
+    return this.getFromWorker(WasmWorkerMessageType.GetMediaInfo, {
+      source: this.source!,
+    });
+  }
+
   /**
    * Gets information about a specified stream in the media file.
    * @param streamType The type of media stream
@@ -145,16 +161,6 @@ export class WebDemuxer {
    */
   public getAVStreams(): Promise<WebAVStream[]> {
     return this.getFromWorker(WasmWorkerMessageType.GetAVStreams, {
-      source: this.source!,
-    });
-  }
-
-  /**
-   * Get file media info
-   * @returns WebMediaInfo
-   */
-  public getMediaInfo(): Promise<WebMediaInfo> {
-    return this.getFromWorker(WasmWorkerMessageType.GetMediaInfo, {
       source: this.source!,
     });
   }
@@ -301,185 +307,153 @@ export class WebDemuxer {
     return this.getFromWorker(WasmWorkerMessageType.SetAVLogLevel, { level })
   }
 
-  // ================ convenience api ================
+  // ================ Convenience API ================
 
   /**
-   * Get video stream
-   * @param streamType The type of media stream
+   * Get media stream (video or audio)
+   * @param type The type of media stream ('video' or 'audio')
+   * @param streamIndex The index of the media stream
    * @returns WebAVStream
    */
-  public getVideoStream(streamIndex?: number) {
-    return this.getAVStream(AVMediaType.AVMEDIA_TYPE_VIDEO, streamIndex);
+  public getMediaStream(type: MediaType, streamIndex?: number) {
+    return this.getAVStream(MEDIA_TYPE_TO_AVMEDIA_TYPE[type], streamIndex);
   }
 
   /**
-   * Get audio stream
-   * @param streamIndex The index of the media stream
-   * @returns 
-   */
-  public getAudioStream(streamIndex?: number) {
-    return this.getAVStream(AVMediaType.AVMEDIA_TYPE_AUDIO, streamIndex);
-  }
-
-  /**
-   * Seek video packet at a time point
+   * Seek media packet at a time point
+   * @param type The type of media ('video' or 'audio')
    * @param time seek time in seconds
    * @param seekFlag The seek flag
    * @returns WebAVPacket
    */
-  public seekVideoPacket(time: number, seekFlag?: AVSeekFlag) {
-    return this.getAVPacket(time, AVMediaType.AVMEDIA_TYPE_VIDEO, undefined, seekFlag);
+  public seekMediaPacket(type: MediaType, time: number, seekFlag?: AVSeekFlag) {
+    return this.getAVPacket(time, MEDIA_TYPE_TO_AVMEDIA_TYPE[type], undefined, seekFlag);
   }
 
   /**
-   * Seek audio packet at a time point
-   * @param time seek time in seconds
-   * @param seekFlag The seek flag
-   * @returns WebAVPacket
-   */
-  public seekAudioPacket(time: number, seekFlag?: AVSeekFlag) {
-    return this.getAVPacket(time, AVMediaType.AVMEDIA_TYPE_AUDIO, undefined, seekFlag);
-  }
-
-  /**
-   * Read video packet as a stream
-   * @param start start time in seconds
-   * @param end  end time in seconds
-   * @param seekFlag The seek flag
-   * @returns ReadableStream<WebAVPacket>
-   */
-  public readVideoPacket(start?: number, end?: number, seekFlag?: AVSeekFlag) {
-    return this.readAVPacket(
-      start,
-      end,
-      AVMediaType.AVMEDIA_TYPE_VIDEO,
-      undefined,
-      seekFlag,
-    );
-  }
-
-  /**
-   * Read audio packet as a stream
+   * Read media packet as a stream
+   * @param type The type of media ('video' or 'audio')
    * @param start start time in seconds
    * @param end end time in seconds
    * @param seekFlag The seek flag
    * @returns ReadableStream<WebAVPacket>
    */
-  public readAudioPacket(start?: number, end?: number, seekFlag?: AVSeekFlag) {
+  public readMediaPacket(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag) {
     return this.readAVPacket(
       start,
       end,
-      AVMediaType.AVMEDIA_TYPE_AUDIO,
+      MEDIA_TYPE_TO_AVMEDIA_TYPE[type],
       undefined,
-      seekFlag
+      seekFlag,
     );
   }
 
-  // =========== custom api for webcodecs ===========
+  // =========== WebCodecs API ===========
 
   /**
-   * Generate VideoDecoderConfig from WebAVStream
+   * Generate decoder config for video or audio
+   * @param type The type of media ('video' or 'audio')
    * @param avStream WebAVStream
-   * @returns VideoDecoderConfig
+   * @returns VideoDecoderConfig | AudioDecoderConfig
    */
-  public genVideoDecoderConfig(avStream: WebAVStream): VideoDecoderConfig {
-    return {
-      codec: avStream.codec_string,
-      codedWidth: avStream.width,
-      codedHeight: avStream.height,
-      description:
-        avStream.extradata?.length > 0
-          ? avStream.extradata
-          : undefined,
-    };
+  public genDecoderConfig<T extends MediaType>(
+    type: T,
+    avStream: WebAVStream
+  ): MediaTypeToConfig[T] {
+    if (type === MediaTypes.VIDEO) {
+      return {
+        codec: avStream.codec_string,
+        codedWidth: avStream.width,
+        codedHeight: avStream.height,
+        description: avStream.extradata?.length > 0 ? avStream.extradata : undefined,
+      } as MediaTypeToConfig[T];
+    } else {
+      return {
+        codec: avStream.codec_string || "",
+        sampleRate: avStream.sample_rate,
+        numberOfChannels: avStream.channels,
+        description: avStream.extradata?.length > 0 ? avStream.extradata : undefined,
+      } as MediaTypeToConfig[T];
+    }
   }
 
   /**
-   * Generate EncodedVideoChunk from WebAVPacket
+   * Generate encoded chunk for video or audio
+   * @param type The type of media ('video' or 'audio')
    * @param avPacket WebAVPacket
-   * @returns EncodedVideoChunk
+   * @returns EncodedVideoChunk | EncodedAudioChunk
    */
-  public genEncodedVideoChunk(avPacket: WebAVPacket): EncodedVideoChunk {
-    return new EncodedVideoChunk({
-      type: avPacket.keyframe === 1 ? "key" : "delta",
+  public genEncodedChunk<T extends MediaType>(
+    type: T,
+    avPacket: WebAVPacket
+  ): MediaTypeToChunk[T] {
+    const chunkData = {
+      type: avPacket.keyframe === 1 ? "key" as const : "delta" as const,
       timestamp: avPacket.timestamp * TIME_BASE,
       duration: avPacket.duration * TIME_BASE,
       data: avPacket.data,
-    });
-  }
-
-  /**
-   * Generate AudioDecoderConfig from WebAVStream
-   * @param avStream WebAVStream
-   * @returns AudioDecoderConfig
-   */
-  public genAudioDecoderConfig(avStream: WebAVStream): AudioDecoderConfig {
-    return {
-      codec: avStream.codec_string || "",
-      sampleRate: avStream.sample_rate,
-      numberOfChannels: avStream.channels,
-      description:
-        avStream.extradata?.length > 0
-          ? avStream.extradata
-          : undefined,
     };
+
+    return (type === MediaTypes.VIDEO
+      ? new EncodedVideoChunk(chunkData)
+      : new EncodedAudioChunk(chunkData)) as MediaTypeToChunk[T];
   }
 
   /**
-   * Generate EncodedAudioChunk from WebAVPacket
-   * @param avPacket WebAVPacket
-   * @returns EncodedAudioChunk
+   * Get decoder config for WebCodecs
+   * @param type The type of media ('video' or 'audio')
+   * @returns Promise<VideoDecoderConfig | AudioDecoderConfig>
    */
-  public genEncodedAudioChunk(avPacket: WebAVPacket): EncodedAudioChunk {
-    return new EncodedAudioChunk({
-      type: avPacket.keyframe === 1 ? "key" : "delta",
-      timestamp: avPacket.timestamp * TIME_BASE,
-      duration: avPacket.duration * TIME_BASE,
-      data: avPacket.data,
+  public getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]> {
+    return this.getMediaStream(type).then(stream => this.genDecoderConfig(type, stream));
+  }
+
+  /**
+   * Seek and return encoded chunk for WebCodecs
+   * @param type The type of media ('video' or 'audio')
+   * @param time time in seconds
+   * @param seekFlag The seek flag
+   * @returns ReadableStream<EncodedVideoChunk | EncodedAudioChunk>
+   */
+  public seek<T extends MediaType>(
+    type: T,
+    time: number,
+    seekFlag?: AVSeekFlag
+  ): Promise<MediaTypeToChunk[T]> {
+    return this.seekMediaPacket(type, time, seekFlag).then(packet => this.genEncodedChunk(type, packet));
+  }
+
+  /**
+   * Read encoded chunks as a stream for WebCodecs
+   * @param type The type of media ('video' or 'audio')
+   * @param start start time in seconds
+   * @param end end time in seconds
+   * @param seekFlag The seek flag
+   * @returns ReadableStream<EncodedVideoChunk | EncodedAudioChunk>
+   */
+  public read<T extends MediaType>(
+    type: T,
+    start?: number,
+    end?: number,
+    seekFlag?: AVSeekFlag
+  ): ReadableStream<MediaTypeToChunk[T]> {
+    const avPackets = this.readMediaPacket(type, start, end, seekFlag);
+    const self = this;
+    
+    return new ReadableStream({
+      async start(controller) {
+        const reader = avPackets.getReader();
+        while (true) {
+          const { done, value: packet } = await reader.read();
+          if (done) {
+            controller.close();
+            break;
+          }
+          
+          const chunk = self.genEncodedChunk(type, packet);
+          controller.enqueue(chunk);
+        }
+      },
     });
-  }
-
-  /**
-   * Get WebCodecs VideoDecoderConfig
-   * @returns VideoDecoderConfig
-   */
-  public async getVideoDecoderConfig() {
-    const videoStream = await this.getVideoStream();
-
-    return this.genVideoDecoderConfig(videoStream);
-  }
-
-  /**
-   * Seek and return EncodedVideoChunk
-   * @param time time in seconds
-   * @param seekFlag The seek flag
-   * @returns EncodedVideoChunk
-   */
-  public async seekEncodedVideoChunk(time: number, seekFlag?: AVSeekFlag) {
-    const videoPacket = await this.seekVideoPacket(time, seekFlag);
-
-    return this.genEncodedVideoChunk(videoPacket);
-  }
-
-  /**
-   * Get WebCodecs AudioDecoderConfig
-   * @returns AudioDecoderConfig
-   */
-  public async getAudioDecoderConfig() {
-    const audioStream = await this.getAudioStream();
-
-    return this.genAudioDecoderConfig(audioStream);
-  }
-
-  /**
-   * Seek and return EncodedAudioChunk
-   * @param time time in seconds
-   * @param seekFlag The seek flag
-   * @returns EncodedAudioChunk
-   */
-  public async seekEncodedAudioChunk(time: number, seekFlag?: AVSeekFlag) {
-    const audioPacket = await this.seekAudioPacket(time, seekFlag);
-
-    return this.genEncodedAudioChunk(audioPacket);
   }
 }
