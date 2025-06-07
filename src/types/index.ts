@@ -1,3 +1,4 @@
 export * from "./avutil";
-export * from "./ffmpeg-worker-message";
+export * from "./wasm-worker";
 export * from "./demuxer";
+export * from './media'

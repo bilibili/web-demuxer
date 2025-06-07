@@ -69,7 +69,7 @@ for (const {path: testFilePath, name} of getTestFiles()) {
     const videoPacket = await page.evaluate(async (inputFileSelector) => {
       const file = (document.querySelector(inputFileSelector) as HTMLInputElement).files![0];
       await window.demuxer.load(file);
-      return await window.demuxer.seekVideoPacket(1, 4);
+      return await window.demuxer.seekMediaPacket('video', 1, 4);
     }, inputFileSelector);
 
     expect(videoPacket).toBeDefined();
@@ -87,7 +87,7 @@ for (const {path: testFilePath, name} of getTestFiles()) {
     const audioPacket = await page.evaluate(async (inputFileSelector) => {
       const file = (document.querySelector(inputFileSelector) as HTMLInputElement).files![0];
       await window.demuxer.load(file);
-      return await window.demuxer.seekAudioPacket(1, 4);
+      return await window.demuxer.seekMediaPacket('audio', 1, 4);
     }, inputFileSelector);
 
     expect(audioPacket).toBeDefined();

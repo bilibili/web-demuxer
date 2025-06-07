@@ -33,9 +33,11 @@ npm install web-demuxer
 import { WebDemuxer } from "web-demuxer"
 
 const demuxer = new WebDemuxer({
-  // ⚠️ 你需要将npm包中dist/wasm-files文件放到类似public的静态目录下
-  // 并确保wasm-files中的js和wasm文件在同一目录下
-  wasmLoaderPath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/ffmpeg.min.js",
+  // ⚠️ 可选参数，用于自定义wasm文件地址
+  // 不传时，默认会查找script文件同目录的wasm文件
+  // 因此推荐将npm包中dist/wasm-files/web-demuxer.wasm文件放到项目类似public的静态目录下
+  // 也可以像下面一样，自己指定对应的CDN路径
+  wasmFilePath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/web-demuxer.wasm",
 })
 
 // 以获取指定时间点的视频帧为例
@@ -44,13 +46,13 @@ async function seek(file, time) {
   await demuxer.load(file);
 
   // 2. 解封装视频文件并生成WebCodecs所需的VideoDecoderConfig和EncodedVideoChunk
-  const videoDecoderConfig = await demuxer.getVideoDecoderConfig();
-  const videoChunk = await demuxer.seekEncodedVideoChunk(time);
+  const videoDecoderConfig = await demuxer.getDecoderConfig('video');
+  const videoEncodedChunk = await demuxer.seek('video', time);
 
   // 3. 通过WebCodecs去解码视频帧
   const decoder = new VideoDecoder({
     output: (frame) => {
-      // draw frame...
+      // 绘制frame...
       frame.close();
     },
     error: (e) => {
@@ -59,7 +61,7 @@ async function seek(file, time) {
   });
 
   decoder.configure(videoDecoderConfig);
-  decoder.decode(videoChunk);
+  decoder.decode(videoEncodedChunk);
   decoder.flush();
 }
 ```
@@ -70,14 +72,13 @@ async function seek(file, time) {
 
 ## API
 ```typescript
-new WebDemuxer(options: WebDemuxerOptions)
+new WebDemuxer(options?: WebDemuxerOptions)
 ```
 创建一个新的`WebDemuxer`实例
 
 参数:
-- `options`: 必填, 配置选项
-  - `wasmLoaderPath`: 必填，wasm对应的js loader文件地址（对应npm包中`dist/wasm-files/ffmpeg.js`或`dist/wasm-files/ffmpeg-mini.js`）
-  > ⚠️ 你需要确保将wasm 和js loader文件放在同一个可访问目录下，js loader会默认去请求同目录下的wasm文件
+- `options`: 非必填, 配置选项
+  - `wasmFilePath`: 非必填，用于自定义wasm文件地址，默认会查找script文件同目录的wasm文件
 
 ```typescript
 load(source: File | string): Promise<void>
@@ -88,91 +89,33 @@ load(source: File | string): Promise<void>
   - `source`: 必填，需要处理的`File`对象或者文件URL 
 
 ```typescript
-getVideoDecoderConfig(): Promise<VideoDecoderConfig>
+getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>
 ```
-解析视频流，获取文件的`VideoDecoderConfig`, 返回值可直接作为`VideoDecoder`的`configure`方法的入参  
-
-
-```typescript
-getAudioDecoderConfig(): Promise<AudioDecoderConfig>
-```
-解析音频流，获取文件的`AudioDecoderConfig`, 返回值可直接作为`AudioDecoder`的`configure`方法的入参
-
-```typescript
-seekEncodedVideoChunk(time: number, seekFlag?: AVSeekFlag): Promise<EncodedVideoChunk>
-```
-根据传入时间点，获取指定时间点的视频数据（默认取关键帧），返回值可直接作为`VideoDecoder`的`decode`方法的入参
+获取WebCodecs所需的解码器配置。根据媒体类型('video' 或 'audio')返回相应的 `VideoDecoderConfig` 或 `AudioDecoderConfig`。
 
 参数:
-- `time`: 必填，单位为s
-- `seekFlag`: 寻址标志, 默认值为1 (向后寻址). 详情请查看 `AVSeekFlag`。
+- `type`: 必填，媒体类型 ('video' 或 'audio')
 
 ```typescript
-seekEncodedAudioChunk(time: number, seekFlag?: AVSeekFlag): Promise<EncodedAudioChunk>
+seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>
 ```
-根据传入时间点，获取指定时间点的音频数据，返回值可直接作为`AudioDecoder`的`decode`方法的入参
+在指定时间点获取编码数据。根据媒体类型返回`EncodedVideoChunk` 或 `EncodedAudioChunk`。
 
 参数:
-- `time`: 必填，单位为s
-- `seekFlag`: 寻址标志, 默认值为1 (向后寻址). 详情请查看 `AVSeekFlag`。
+- `type`: 必填，媒体类型 ('video' 或 'audio')
+- `time`: 必填，单位为秒
+- `seekFlag`: 寻址标志，默认值为1（向后寻址）。详情参见 `AVSeekFlag`。
 
 ```typescript
-readAVPacket(start?: number, end?: number, streamType?: AVMediaType, streamIndex?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>
+read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>
 ```
-返回一个`ReadableStream`, 用于流式读取packet数据
+以流的形式读取编码数据。返回包含 `EncodedVideoChunk` 或 `EncodedAudioChunk` 的 `ReadableStream`。
 
 参数:
-- `start`: 读取开始时间点，单位为s，默认值为0，从头开始读取packet
-- `end`: 读取结束时间点，单位为s, 默认值为0，读取到文件末尾
-- `streamType`: 媒体流类型，默认值为0, 即视频流，1为音频流。其他具体见`AVMediaType`
-- `streamIndex`: 媒体流索引，默认值为-1，即自动选择
-- `seekFlag`: 寻址标志, 默认值为1 (向后寻址). 详情请查看 `AVSeekFlag`。
-
-基于`readAVPacket`的语义简化方法:
-- `readVideoPacket(start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>`
-- `readAudioPacket(start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>`
-
-```typescript
-getAVStream(streamType?: AVMediaType, streamIndex?: number): Promise<WebAVStream>
-```
-获取媒体文件中指定stream的信息
-
-参数: 
-- `streamType`: 媒体流类型，默认值为0, 即视频流，1为音频流。其他具体见`AVMediaType`
-- `streamIndex`: 媒体流索引，默认值为-1，即自动选择
-
-基于`getAVStream`的语义简化方法:
-- `getVideoStream(streamIndex?: number): Promise<WebAVStream>`
-- `getAudioStream(streamIndex?: number): Promise<WebAVStream>`
-
-```typescript
-getAVStreams(): Promise<WebAVStream[]>
-```
-获取媒体文件中所有的stream
-
-```typescript
-getAVPacket(time: number, streamType?: AVMediaType, streamIndex?: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>
-```
-获取媒体文件中指定时间点的数据
-
-参数:
-- `time`: 必填，单位为s
-- `streamType`: 媒体流类型，默认值为0, 即视频流，1为音频流。其他具体见`AVMediaType`
-- `streamIndex`: 媒体流索引，默认值为-1，即自动选择
-- `seekFlag`: 寻址标志, 默认值为1 (向后寻址). 详情请查看 `AVSeekFlag`。
-
-基于`getAVPacket`的语义简化方法:
-- `seekVideoPacket(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>`
-- `seekAudioPacket(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>`
-
-```typescript
-getAVPackets(time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket[]>
-```
-同时获取某个时间点，所有stream上的packet数据, 并按照stream数组顺序返回
-
-参数:
-- `time`: 必填，单位为s
-- `seekFlag`: 寻址标志, 默认值为1 (向后寻址). 详情请查看 `AVSeekFlag`。
+- `type`: 必填，媒体类型 ('video' 或 'audio')
+- `start`: 可选，开始时间(秒)，默认为0
+- `end`: 可选，结束时间(秒)，默认为0(读取到文件末尾)
+- `seekFlag`: 可选，寻址标志，默认为AVSEEK_FLAG_BACKWARD
 
 ```typescript
 getMediaInfo(): Promise<WebMediaInfo> // 2.0新增
@@ -259,6 +202,37 @@ getMediaInfo(): Promise<WebMediaInfo> // 2.0新增
     ]
 }
 ```
+
+```typescript
+getMediaStream(type: MediaType, streamIndex?: number): Promise<WebAVStream>
+```
+获取媒体流信息（视频或音频）。
+
+参数:
+- `type`: 必填，媒体类型('video' 或 'audio')
+- `streamIndex`: 可选，媒体流索引
+
+```typescript
+seekMediaPacket(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>
+```
+获取指定时间点的媒体数据。
+
+参数:
+- `type`: 必填，媒体类型('video' 或 'audio')
+- `time`: 必填，单位为秒
+- `seekFlag`: 可选，寻址标志，默认值为1（向后寻址）。详情请查看 `AVSeekFlag`。
+
+```typescript
+readMediaPacket(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>
+```
+返回一个用于流式读取媒体数据的 `ReadableStream`。
+
+参数:
+- `type`: 必填，媒体类型('video' 或 'audio')
+- `start`: 可选，开始时间点，单位为秒（默认：0）
+- `end`: 可选，结束时间点，单位为秒（默认：0，读取到文件末尾）
+- `seekFlag`: 可选，寻址标志，默认为AVSEEK_FLAG_BACKWARD
+
 ```typescript
 setLogLevel(level: AVLogLevel) // 2.0新增
 ```
@@ -291,3 +265,4 @@ DEMUX_ARGS = \
 ## License
 本项目主要采用 MIT 许可证覆盖大部分代码。  
 `lib/` 目录包含源自 FFmpeg 的代码，遵循 LGPL 许可证。
+
