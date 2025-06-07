@@ -136,8 +136,9 @@
 
         await demuxer.load(file);
 
-        const videoDecoderConfig = await demuxer.getVideoDecoderConfig();
-        const videoChunk = await demuxer.seekEncodedVideoChunk(seekTime);
+        // 使用新API获取解码器配置和编码数据
+        const videoDecoderConfig = await demuxer.getDecoderConfig('video');
+        const videoChunk = await demuxer.seek('video', seekTime);
 
         const decoder = new VideoDecoder({
           output: (frame) => {
@@ -164,7 +165,7 @@
 
         await demuxer.load(file);
 
-        const videoDecoderConfig = await demuxer.getVideoDecoderConfig();
+        const videoDecoderConfig = await demuxer.getDecoderConfig('video');
         const decoder = new VideoDecoder({
           output: (frame) => {
             const scale = Math.min(canvas.width / frame.displayWidth, canvas.height / frame.displayHeight);
@@ -178,7 +179,7 @@
 
         decoder.configure(videoDecoderConfig)
 
-        const reader = demuxer.readAVPacket(startTime, endTime).getReader()
+        const reader = demuxer.read('video', startTime, endTime).getReader()
 
         reader.read().then(async function processPacket({ done, value }) {
           if (done) {
@@ -187,9 +188,7 @@
             return
           }
 
-          const videoChunk = demuxer.genEncodedVideoChunk(value);
-
-          decoder.decode(videoChunk);
+          decoder.decode(value);
 
           await wait(1000 / 30) // 30fps, wait for frame decode and draw
 
@@ -204,9 +203,9 @@
           await demuxer.load(file)
           return new Promise((resolve) => {
             const videoPackets = []
-            const reader = demuxer.readAVPacket().getReader()
+            const reader = demuxer.readMediaPacket('video').getReader()
 
-            reader.read().then(async function processAVPacket({ done, value }) {
+            reader.read().then(async function processVideoPacket({ done, value }) {
               if (done) {
                 resolve(videoPackets) // all packets read finished
                 return
@@ -216,7 +215,7 @@
               // and you can generate video chunk for video decoder
               // const videoChunk = demuxer.genEncodedVideoChunk(value)
 
-              return reader.read().then(processAVPacket)
+              return reader.read().then(processVideoPacket)
             })
           })
         }

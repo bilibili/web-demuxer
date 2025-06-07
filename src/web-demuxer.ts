@@ -438,22 +438,13 @@ export class WebDemuxer {
     seekFlag?: AVSeekFlag
   ): ReadableStream<MediaTypeToChunk[T]> {
     const avPackets = this.readMediaPacket(type, start, end, seekFlag);
-    const self = this;
-    
-    return new ReadableStream({
-      async start(controller) {
-        const reader = avPackets.getReader();
-        while (true) {
-          const { done, value: packet } = await reader.read();
-          if (done) {
-            controller.close();
-            break;
-          }
-          
-          const chunk = self.genEncodedChunk(type, packet);
+    return avPackets.pipeThrough(
+      new TransformStream({
+        transform: (packet, controller) => {
+          const chunk = this.genEncodedChunk(type, packet);
           controller.enqueue(chunk);
         }
-      },
-    });
+      })
+    );
   }
 }
