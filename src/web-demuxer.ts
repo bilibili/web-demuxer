@@ -14,9 +14,9 @@ const TIME_BASE = 1e6;
 
 export interface WebDemuxerOptions {
   /**
-   * wasm file path
+   * custom wasm file path
    */
-  wasmFilePath: string;
+  wasmFilePath?: string;
 }
 
 /**
@@ -26,9 +26,9 @@ export interface WebDemuxerOptions {
  *
  * @example
  * ```typescript
- * const demuxer = new WebDemuxer({ wasmFilePath: '/path/to/web-demuxer.wasm' });
+ * const demuxer = new WebDemuxer();
  * await demuxer.load(file);
- * const packet = await demuxer.seekVideoPacket(10); // seek to 10s
+ * const packet = await demuxer.seekVideoPacket(10);
  * ```
  */
 export class WebDemuxer {
@@ -39,7 +39,9 @@ export class WebDemuxer {
   public source?: File | string;
 
   constructor(options: WebDemuxerOptions) {
-    this.wasmWorker = new WasmWorker();
+    this.wasmWorker = new WasmWorker({
+      name: 'web-demuxer'
+    });
     this.wasmWorkerLoadStatus = new Promise((resolve, reject) => {
       this.wasmWorker.addEventListener("message", (e) => {
         const { type, errMsg } = e.data;

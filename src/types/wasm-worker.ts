@@ -60,7 +60,7 @@ export interface ReadAVPacketMessageData {
 }
 
 export interface LoadWASMMessageData {
-  wasmFilePath: string;
+  wasmFilePath?: string;
 }
 
 export interface GetMediaInfoMessageData {
