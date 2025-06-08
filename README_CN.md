@@ -244,7 +244,7 @@ const demuxer = new WebDemuxer({
 获取特定媒体流的信息。
 
 **参数：**
-- `type`：`'video'` 或 `'audio'`
+- `type`：`'video'`、`'audio'` 或 `'subtitle'`
 - `streamIndex`：流索引（可选）
 
 ### 底层数据包访问
@@ -254,7 +254,7 @@ const demuxer = new WebDemuxer({
 获取指定时间的原始媒体数据包。
 
 **参数：**
-- `type`：媒体类型（`'video'` 或 `'audio'`）
+- `type`：媒体类型（`'video'`、`'audio'` 或 `'subtitle'`）
 - `time`：时间（秒）
 - `seekFlag`：寻址方向（默认：向后寻址）
 
@@ -263,7 +263,7 @@ const demuxer = new WebDemuxer({
 返回用于流式传输原始媒体数据包的 `ReadableStream`。
 
 **参数：**
-- `type`：媒体类型（`'video'` 或 `'audio'`）
+- `type`：媒体类型（`'video'`、`'audio'` 或 `'subtitle'`）
 - `start`：开始时间（秒，默认：0）
 - `end`：结束时间（秒，默认：0，读取到文件末尾）
 - `seekFlag`：寻址方向（默认：向后寻址）

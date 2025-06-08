@@ -244,7 +244,7 @@ Extracts comprehensive media metadata (similar to ffprobe output).
 Gets information about a specific media stream.
 
 **Parameters:**
-- `type`: `'video'` or `'audio'`
+- `type`: `'video'`, `'audio'` or `'subtitle'`
 - `streamIndex`: Stream index (optional)
 
 ### Low-Level Packet Access
@@ -254,7 +254,7 @@ Gets information about a specific media stream.
 Gets raw media packet at specific time.
 
 **Parameters:**
-- `type`: Media type (`'video'` or `'audio'`)
+- `type`: Media type (`'video'`, `'audio'` or `'subtitle'`)
 - `time`: Time in seconds
 - `seekFlag`: Seek direction (default: backward seek)
 
@@ -263,7 +263,7 @@ Gets raw media packet at specific time.
 Returns a `ReadableStream` for streaming raw media packet data.
 
 **Parameters:**
-- `type`: Media type (`'video'` or `'audio'`)
+- `type`: Media type (`'video'`, `'audio'` or `'subtitle'`)
 - `start`: Start time in seconds (default: 0)
 - `end`: End time in seconds (default: 0, read till end)
 - `seekFlag`: Seek direction (default: backward seek)
