@@ -8,6 +8,7 @@ import {
   WebAVStream,
   WebMediaInfo,
   MediaType,
+  WebCodecsSupportedMediaType,
   MediaTypeToChunk,
   MediaTypeToConfig,
   MediaTypes,
@@ -310,8 +311,8 @@ export class WebDemuxer {
   // ================ Convenience API ================
 
   /**
-   * Get media stream (video or audio)
-   * @param type The type of media stream ('video' or 'audio')
+   * Get media stream (video, audio or subtitle)
+   * @param type The type of media stream ('video', 'audio' or 'subtitle')
    * @param streamIndex The index of the media stream
    * @returns WebAVStream
    */
@@ -321,7 +322,7 @@ export class WebDemuxer {
 
   /**
    * Seek media packet at a time point
-   * @param type The type of media ('video' or 'audio')
+   * @param type The type of media ('video', 'audio' or 'subtitle')
    * @param time seek time in seconds
    * @param seekFlag The seek flag
    * @returns WebAVPacket
@@ -332,7 +333,7 @@ export class WebDemuxer {
 
   /**
    * Read media packet as a stream
-   * @param type The type of media ('video' or 'audio')
+   * @param type The type of media ('video', 'audio' or 'subtitle')
    * @param start start time in seconds
    * @param end end time in seconds
    * @param seekFlag The seek flag
@@ -356,7 +357,7 @@ export class WebDemuxer {
    * @param avStream WebAVStream
    * @returns VideoDecoderConfig | AudioDecoderConfig
    */
-  public genDecoderConfig<T extends MediaType>(
+  public genDecoderConfig<T extends WebCodecsSupportedMediaType>(
     type: T,
     avStream: WebAVStream
   ): MediaTypeToConfig[T] {
@@ -383,7 +384,7 @@ export class WebDemuxer {
    * @param avPacket WebAVPacket
    * @returns EncodedVideoChunk | EncodedAudioChunk
    */
-  public genEncodedChunk<T extends MediaType>(
+  public genEncodedChunk<T extends WebCodecsSupportedMediaType>(
     type: T,
     avPacket: WebAVPacket
   ): MediaTypeToChunk[T] {
@@ -404,7 +405,7 @@ export class WebDemuxer {
    * @param type The type of media ('video' or 'audio')
    * @returns Promise<VideoDecoderConfig | AudioDecoderConfig>
    */
-  public getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]> {
+  public getDecoderConfig<T extends WebCodecsSupportedMediaType>(type: T): Promise<MediaTypeToConfig[T]> {
     return this.getMediaStream(type).then(stream => this.genDecoderConfig(type, stream));
   }
 
@@ -415,7 +416,7 @@ export class WebDemuxer {
    * @param seekFlag The seek flag
    * @returns ReadableStream<EncodedVideoChunk | EncodedAudioChunk>
    */
-  public seek<T extends MediaType>(
+  public seek<T extends WebCodecsSupportedMediaType>(
     type: T,
     time: number,
     seekFlag?: AVSeekFlag
@@ -431,7 +432,7 @@ export class WebDemuxer {
    * @param seekFlag The seek flag
    * @returns ReadableStream<EncodedVideoChunk | EncodedAudioChunk>
    */
-  public read<T extends MediaType>(
+  public read<T extends WebCodecsSupportedMediaType>(
     type: T,
     start?: number,
     end?: number,
