@@ -1,59 +1,48 @@
 <h4 align="right"><strong>English</strong> | <a href="https://github.com/ForeverSc/web-demuxer/blob/main/README_CN.md">简体中文</a></h4>
 <h1 align="center">Web-Demuxer</h1>
 <p align="center">Demux media files in the browser using WebAssembly, designed for WebCodecs.</p>
+
 <div align="center">
   <a href="https://www.npmjs.com/package/web-demuxer"><img src="https://img.shields.io/npm/v/web-demuxer" alt="version"></a>
   <a href="https://www.npmjs.com/package/web-demuxer"><img src="https://img.shields.io/npm/dm/web-demuxer" alt="downloads"></a>
   <a href="https://www.jsdelivr.com/package/npm/web-demuxer"><img src="https://data.jsdelivr.com/v1/package/npm/web-demuxer/badge" alt="hits"></a>
 </div>
 
-## Purpose
-WebCodecs only provide the ability to decode, but not to demux. mp4box.js is cool, but it only supports mp4 demux. Web-Demuxer aims to support as many multimedia formats as possible at once.
+## Overview
+
+WebCodecs provides decoding capabilities but lacks demuxing functionality. While mp4box.js is excellent for MP4 files, it only supports MP4 format. **Web-Demuxer** aims to support a wide range of multimedia formats in one package, specifically designed for seamless WebCodecs integration.
 
 ## Features
-- 🪄 Specifically designed for WebCodecs, the API is very friendly for WebCodecs development, you can easily realize the media file demux.
-- 📦 One-time support for a variety of media formats, such as mov/mp4/mkv/webm/flv/m4v/wmv/avi/ts, etc.
-- 🧩 Support for customized packaging, you can adjust the configuration, packaged in a specified format demuxer
 
-## Install
-### NPM
+- 🪄 **WebCodecs-First Design** - API optimized for WebCodecs development with intuitive methods
+- 📦 **Multi-Format Support** - Handle mov/mp4/mkv/webm/flv/m4v/wmv/avi/ts and more formats
+- 🧩 **Customizable Build** - Configure and build demuxers for specific formats only
+- 🔧 **Rich Media Info** - Extract detailed metadata similar to ffprobe output
+
+## Quick Start
+
 ```bash
 npm install web-demuxer
 ```
 
-### CDN
-```html
-<script type="module">
-  import { WebDemuxer } from 'https://cdn.jsdelivr.net/npm/web-demuxer/+esm';
-</script>
-```
-
-## Usage
 ```typescript
-import { WebDemuxer } from "web-demuxer"
+import { WebDemuxer } from "web-demuxer";
 
-const demuxer = new WebDemuxer({
-  // ⚠️ Optional parameter for custom WASM file location
-  // When omitted, it defaults to looking for WASM files in the same directory as the script file.
-  // We recommend placing the WASM file (web-demuxer.wasm from npm package's dist/wasm-files/) 
-  // in your project's static directory (e.g., public folder).
-  // Alternatively, you can specify a CDN path like this:
-  wasmFilePath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/web-demuxer.wasm",
-})
+const demuxer = new WebDemuxer();
 
-// Take the example of seeking a video frame at a specified point in time
+// Example: Get video frame at specific time
 async function seek(file, time) {
-  // 1. load video file
+  // 1. Load video file
   await demuxer.load(file);
 
-  // 2. demux video file and generate WebCodecs needed VideoDecoderConfig and EncodedVideoChunk
+  // 2. Demux video file and generate VideoDecoderConfig and EncodedVideoChunk required by WebCodecs
   const videoDecoderConfig = await demuxer.getDecoderConfig('video');
   const videoEncodedChunk = await demuxer.seek('video', time);
 
-  // 3. use WebCodecs to decode frame
+  // 3. Decode video frame through WebCodecs
   const decoder = new VideoDecoder({
     output: (frame) => {
-      // draw frame...
+      // Render frame, e.g., using canvas drawImage
       frame.close();
     },
     error: (e) => {
@@ -67,61 +56,106 @@ async function seek(file, time) {
 }
 ```
 
-## Examples
-- [Seek Video Frame](https://foreversc.github.io/web-demuxer/#example-seek) ｜ [code](https://github.com/ForeverSc/web-demuxer/blob/main/index.html#L96)
-- [Play Video](https://foreversc.github.io/web-demuxer/#example-play) ｜ [code](https://github.com/ForeverSc/web-demuxer/blob/main/index.html#L123)
+## Installation
+
+### NPM
+```bash
+npm install web-demuxer
+```
+
+### CDN
+```html
+<script type="module">
+  import { WebDemuxer } from 'https://cdn.jsdelivr.net/npm/web-demuxer/+esm';
+</script>
+```
+
+### WASM File Setup
+
+**‼️ Important:** Place the WASM file in your static directory (e.g., `public/`) for proper loading.
+
+```typescript
+const demuxer = new WebDemuxer({
+  // Option 1: Use CDN
+  wasmFilePath: "https://cdn.jsdelivr.net/npm/web-demuxer@latest/dist/wasm-files/web-demuxer.wasm",
+  
+  // Option 2: Use local file
+  // Copy dist/wasm-files/web-demuxer.wasm from npm package to public directory
+  // You can use plugins like vite-plugin-static-copy to sync automatically
+  // If JS and WASM are in the same public directory, wasmFilePath can be omitted
+  // wasmFilePath: "/path/to/your/public/web-demuxer.wasm"
+});
+```
+
+## Live Examples
+- [Seek Video Frame](https://foreversc.github.io/web-demuxer/#example-seek) | [Source Code](https://github.com/bilibili/web-demuxer/blob/main/index.html#L131-L157)
+- [Play Video](https://foreversc.github.io/web-demuxer/#example-play) | [Source Code](https://github.com/bilibili/web-demuxer/blob/main/index.html#L159-L197)
 
 ## API
-```typescript
-new WebDemuxer(options?: WebDemuxerOptions)
-```
-Creates a new instance of `WebDemuxer`.
 
-Parameters:
-- `options`: Optional, configuration options.
-  - `wasmFilePath`: Optional, customize the WASM file path, it defaults to looking for WASM files in the same directory as the script file.
+### Constructor
 
-```typescript
-load(source: File | string): Promise<void>
-```
-Loads a file and waits for the wasm worker to finish loading. The subsequent methods can only be called after the `load` method has been successfully executed.
+#### `new WebDemuxer(options?: WebDemuxerOptions)`
 
-Parameters:
-  - `source`: Required, support the `File` object or file URL to be processed.
+Creates a new WebDemuxer instance.
 
-```typescript
-getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>
-```
-Get decoder configuration for WebCodecs based on media type ('video' or 'audio'). Returns `VideoDecoderConfig` or `AudioDecoderConfig` that can be used directly with WebCodecs.
+**Parameters:**
+- `options.wasmFilePath` (optional): Custom WASM file path. Defaults to looking for `web-demuxer.wasm` in the script directory.
 
-Parameters:
-- `type`: Required, media type ('video' or 'audio')
+### Core Methods
 
-```typescript
-seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>
-```
-Seek and return encoded chunk for WebCodecs. Returns `EncodedVideoChunk` or `EncodedAudioChunk` based on media type.
+#### `load(source: File | string): Promise<void>`
 
-Parameters:
-- `type`: Required, media type ('video' or 'audio')
-- `time`: Required, unit is s
-- `seekFlag`: Seek flag, default value is 1 (backward seek). See `AVSeekFlag` for details.
+Loads a media file and initializes the WASM worker.
 
-```typescript
-read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>
-```
-Read encoded chunks as a stream for WebCodecs. Returns `ReadableStream` of `EncodedVideoChunk` or `EncodedAudioChunk`.
+**Parameters:**
+- `source`: File object or URL string
 
-Parameters:
-- `type`: Required, media type ('video' or 'audio')
-- `start`: Optional, start time in seconds (default: 0)
-- `end`: Optional, end time in seconds (default: 0, read till end)
-- `seekFlag`: Optional, seek flag (default: AVSEEK_FLAG_BACKWARD)
+**Note:** All subsequent methods require successful `load()` execution.
 
-```typescript
-getMediaInfo(): Promise<WebMediaInfo> // 2.0 New
-```
-Get the media information of a file, the output is referenced from `ffprobe`
+#### `getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>`
+
+Gets WebCodecs decoder configuration.
+
+**Parameters:**
+- `type`: `'video'` or `'audio'`
+
+**Returns:** `VideoDecoderConfig` or `AudioDecoderConfig`
+
+#### `seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>`
+
+Seeks to specific time and returns encoded chunk.
+
+**Parameters:**
+- `type`: `'video'` or `'audio'`
+- `time`: Time in seconds
+- `seekFlag`: Seek direction (default: backward)
+
+**Returns:** `EncodedVideoChunk` or `EncodedAudioChunk`
+
+#### `read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>`
+
+Creates a stream of encoded chunks.
+
+**Parameters:**
+- `type`: `'video'` or `'audio'`
+- `start`: Start time in seconds (default: 0)
+- `end`: End time in seconds (default: end of file)
+- `seekFlag`: Seek direction (default: backward)
+
+**Returns:** `ReadableStream` of encoded chunks
+
+### Media Information
+
+#### `getMediaInfo(): Promise<WebMediaInfo>`
+
+Extracts comprehensive media metadata (similar to ffprobe output).
+
+**Returns:**
+
+<details>
+<summary>📋 Example Response (Click to expand)</summary>
+
 ```json
 {
     "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
@@ -151,7 +185,7 @@ Get the media information of a file, the output is referenced from `ffprobe`
             "sample_fmt": "u8",
             "bit_rate": "6385079",
             "extradata_size": 36,
-            "extradata": Uint8Array,
+            "extradata": "Uint8Array",
             "r_frame_rate": "30/1",
             "avg_frame_rate": "30/1",
             "sample_aspect_ratio": "N/A",
@@ -184,7 +218,7 @@ Get the media information of a file, the output is referenced from `ffprobe`
             "sample_fmt": "",
             "bit_rate": "124878",
             "extradata_size": 2,
-            "extradata": Uint8Array,
+            "extradata": "Uint8Array",
             "r_frame_rate": "0/0",
             "avg_frame_rate": "0/0",
             "sample_aspect_ratio": "N/A",
@@ -203,67 +237,85 @@ Get the media information of a file, the output is referenced from `ffprobe`
     ]
 }
 ```
+</details>
 
-```typescript
-getMediaStream(type: MediaType, streamIndex?: number): Promise<WebAVStream>
-```
-Get information about a media stream (video or audio) in the media file.
+#### `getMediaStream(type: MediaType, streamIndex?: number): Promise<WebAVStream>`
 
-Parameters:
-- `type`: Required, the type of media stream ('video' or 'audio')
-- `streamIndex`: Optional, the index of the media stream
+Gets information about a specific media stream.
 
-```typescript
-seekMediaPacket(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>
-```
-Retrieves the media data at the specified time point.
+**Parameters:**
+- `type`: `'video'` or `'audio'`
+- `streamIndex`: Stream index (optional)
 
-Parameters:
-- `type`: Required, the type of media ('video' or 'audio')
-- `time`: Required, in seconds
-- `seekFlag`: Optional, seek flag, defaults to 1 (backward seek). See `AVSeekFlag` for details.
+### Low-Level Packet Access
 
-```typescript
-readMediaPacket(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>
-```
-Returns a `ReadableStream` for streaming media packet data.
+#### `seekMediaPacket(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<WebAVPacket>`
 
-Parameters:
-- `type`: Required, the type of media ('video' or 'audio')
-- `start`: Optional, start time in seconds (default: 0)
-- `end`: Optional, end time in seconds (default: 0, read till end)
-- `seekFlag`: Optional, seek flag (default: AVSEEK_FLAG_BACKWARD)
+Gets raw media packet at specific time.
 
+**Parameters:**
+- `type`: Media type (`'video'` or `'audio'`)
+- `time`: Time in seconds
+- `seekFlag`: Seek direction (default: backward seek)
 
-```typescript
-setLogLevel(level: AVLogLevel) // 2.0 New
-```
-Parameters:
-- `level`: Required, output log level, see `AVLogLevel` for details.
+#### `readMediaPacket(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<WebAVPacket>`
 
-```typescript
-destroy(): void
-```
-Destroys the instance and releases the worker.
+Returns a `ReadableStream` for streaming raw media packet data.
+
+**Parameters:**
+- `type`: Media type (`'video'` or `'audio'`)
+- `start`: Start time in seconds (default: 0)
+- `end`: End time in seconds (default: 0, read till end)
+- `seekFlag`: Seek direction (default: backward seek)
+
+### Utility Methods
+
+#### `setLogLevel(level: AVLogLevel): void`
+
+Sets logging verbosity level for debugging purposes.
+
+**Parameters:**
+- `level`: Log level (see `AVLogLevel` for available options)
+
+#### `destroy(): void`
+
+Cleans up resources and terminates worker.
 
 ## Custom Demuxer
-Currently, two versions of the demuxer are provided by default to support different formats:
-- `dist/wasm-files/web-demuxer.wasm`: Full version (gzipped: 1131 kB), larger in size, supports mov, mp4, m4a, 3gp, 3g2, mj2, avi, flv, matroska, webm, m4v, mpeg, asf, mpegts
-- `dist/wasm-files/web-demuxer-mini.wasm`: Minimalist version (gzipped: 493 kB), smaller in size, only supports mov, mp4, m4a, 3gp, 3g2, matroska, webm, m4v
-> If you want to use a smaller size version, you can use version 1.0 of web-demuxer, the lite version is only 115KB  
-> Version 1.0 is written in C, focuses on WebCodecs, and is small in size, while version 2.0 uses C++ Embind, which provides richer media information output, is easier to maintain, and is large in size
 
-You can also implement a demuxer for specific formats through custom configuration:
+Web-Demuxer provides two pre-built versions:
 
-First, modify the `enable-demuxer` configuration in the `Makefile`
+| Version | Size (gzipped) | Supported Formats |
+|---------|----------------|-------------------|
+| **Full** (`web-demuxer.wasm`) | 1131 kB | mov, mp4, avi, flv, mkv, webm, mpeg, asf, mpegts, etc. |
+| **Mini** (`web-demuxer-mini.wasm`) | 493 kB | mov, mp4, mkv, webm, m4v |
+
+
+### Building Custom Version
+
+For specific format support, customize the build:
+
+1. **Configure formats** in `Makefile`:
 ```makefile
 DEMUX_ARGS = \
-    --enable-demuxer=mov,mp4,m4a,3gp,3g2,mj2,avi,flv,matroska,webm,m4v,mpeg,asf
+    --enable-demuxer=mov,mp4,m4a,3gp,3g2,mj2
 ```
-Then execute `npm run dev:docker:arm64` (if on Windows, please execute `npm run dev:docker:x86_64`) to start the Docker environment.
 
-Finally, execute `npm run build:wasm` to build the demuxer for the specified formats.
+2. **Start Docker environment**:
+```bash
+# For ARM64 (Apple Silicon)
+npm run dev:docker:arm64
+
+# For x86_64 (Intel/AMD)
+npm run dev:docker:x86_64
+```
+
+3. **Build custom WASM**:
+```bash
+npm run build:wasm
+```
 
 ## License
-This project is primarily licensed under the MIT License, covering most of the codebase.  
-The `lib/` directory includes code derived from FFmpeg, which is licensed under the LGPL License.
+
+This project is licensed under the MIT License for the main codebase.  
+The `lib/` directory contains FFmpeg-derived code under the LGPL License.
