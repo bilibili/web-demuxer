@@ -15,12 +15,12 @@
       "require": "./dist/web-demuxer.umd.cjs"
     },
     "./wasm": {
-      "import": "./dist/wasm-files/ffmpeg.wasm",
-      "require": "./dist/wasm-files/ffmpeg.wasm"
+      "import": "./dist/wasm-files/web-demuxer.wasm",
+      "require": "./dist/wasm-files/web-demuxer.wasm"
     },
     "./wasm-mini": {
-      "import": "./dist/wasm-files/ffmpeg-mini.wasm",
-      "require": "./dist/wasm-files/ffmpeg-mini.wasm"
+      "import": "./dist/wasm-files/web-demuxer-mini.wasm",
+      "require": "./dist/wasm-files/web-demuxer-mini.wasm"
     }
   },
   "scripts": {
