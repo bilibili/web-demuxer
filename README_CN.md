@@ -113,7 +113,7 @@ const demuxer = new WebDemuxer({
 
 **注意：** 所有后续方法都需要成功执行 `load()` 后才能调用。
 
-#### `getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>`
+#### `getDecoderConfig(type: MediaType): Promise<VideoDecoderConfig | AudioDecoderConfig>`
 
 获取 WebCodecs 解码器配置。
 
@@ -122,7 +122,7 @@ const demuxer = new WebDemuxer({
 
 **返回值：** `VideoDecoderConfig` 或 `AudioDecoderConfig`
 
-#### `seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>`
+#### `seek(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<EncodedVideoChunk | EncodedAudioChunk>`
 
 跳转到指定时间并返回编码块。
 
@@ -133,7 +133,7 @@ const demuxer = new WebDemuxer({
 
 **返回值：** `EncodedVideoChunk` 或 `EncodedAudioChunk`
 
-#### `read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>`
+#### `read(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<EncodedVideoChunk | EncodedAudioChunk>`
 
 创建编码块流。
 

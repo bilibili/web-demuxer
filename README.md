@@ -113,7 +113,7 @@ Loads a media file and initializes the WASM worker.
 
 **Note:** All subsequent methods require successful `load()` execution.
 
-#### `getDecoderConfig<T extends MediaType>(type: T): Promise<MediaTypeToConfig[T]>`
+#### `getDecoderConfig(type: MediaType): Promise<VideoDecoderConfig | AudioDecoderConfig>`
 
 Gets WebCodecs decoder configuration.
 
@@ -122,7 +122,7 @@ Gets WebCodecs decoder configuration.
 
 **Returns:** `VideoDecoderConfig` or `AudioDecoderConfig`
 
-#### `seek<T extends MediaType>(type: T, time: number, seekFlag?: AVSeekFlag): Promise<MediaTypeToChunk[T]>`
+#### `seek(type: MediaType, time: number, seekFlag?: AVSeekFlag): Promise<EncodedVideoChunk | EncodedAudioChunk>`
 
 Seeks to specific time and returns encoded chunk.
 
@@ -133,7 +133,7 @@ Seeks to specific time and returns encoded chunk.
 
 **Returns:** `EncodedVideoChunk` or `EncodedAudioChunk`
 
-#### `read<T extends MediaType>(type: T, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<MediaTypeToChunk[T]>`
+#### `read(type: MediaType, start?: number, end?: number, seekFlag?: AVSeekFlag): ReadableStream<EncodedVideoChunk | EncodedAudioChunk>`
 
 Creates a stream of encoded chunks.
 
