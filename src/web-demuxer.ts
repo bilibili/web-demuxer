@@ -355,7 +355,7 @@ export class WebDemuxer {
    * Generate decoder config for video or audio
    * @param type The type of media ('video' or 'audio')
    * @param avStream WebAVStream
-   * @returns VideoDecoderConfig | AudioDecoderConfig
+   * @returns ExtendedVideoDecoderConfig | AudioDecoderConfig
    */
   public genDecoderConfig<T extends WebCodecsSupportedMediaType>(
     type: T,
@@ -367,6 +367,7 @@ export class WebDemuxer {
         codedWidth: avStream.width,
         codedHeight: avStream.height,
         description: avStream.extradata?.length > 0 ? avStream.extradata : undefined,
+        rotation: avStream.rotation,
       } as MediaTypeToConfig[T];
     } else {
       return {
@@ -403,7 +404,7 @@ export class WebDemuxer {
   /**
    * Get decoder config for WebCodecs
    * @param type The type of media ('video' or 'audio')
-   * @returns Promise<VideoDecoderConfig | AudioDecoderConfig>
+   * @returns Promise<ExtendedVideoDecoderConfig | AudioDecoderConfig>
    */
   public getDecoderConfig<T extends WebCodecsSupportedMediaType>(type: T): Promise<MediaTypeToConfig[T]> {
     return this.getMediaStream(type).then(stream => this.genDecoderConfig(type, stream));

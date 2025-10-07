@@ -16,6 +16,7 @@ extern "C"
 #include <libavutil/display.h>
 #include <libavutil/pixdesc.h>
 #include <libavcodec/codec_id.h>
+#include <libavutil/eval.h>
 #include "video_codec_string.h"
 #include "audio_codec_string.h"
 };
@@ -110,20 +111,39 @@ typedef struct WebMediaInfo
     std::vector<WebAVStream> streams;
 } WebMediaInfo;
 
-double get_rotation(AVStream *stream) {
-   for (int i = 0; i < stream->codecpar->nb_coded_side_data; i++) {
-        AVPacketSideData *sd = &stream->codecpar->coded_side_data[i];
+double get_rotation(AVStream *st)
+{
+    AVDictionaryEntry *rotate_tag = av_dict_get(st->metadata, "rotate", NULL, 0);
+    double theta = 0;
 
-        if (sd->type == AV_PKT_DATA_DISPLAYMATRIX && sd->size >= 9*4) {
-            double rotation = av_display_rotation_get((int32_t *)sd->data);
-            if (std::isnan(rotation))
-                rotation = 0;
-            
-            return rotation;
+    // prioritize using metatdata rotation tag
+    if (rotate_tag && (*rotate_tag->value) && strcmp(rotate_tag->value, "0"))
+    {
+        char *tail;
+        theta = av_strtod(rotate_tag->value, &tail);
+        if (*tail)
+        {
+            theta = 0;
         }
     }
 
-    return 0;
+    if (!theta){
+        for (int i = 0; i < st->codecpar->nb_coded_side_data; i++) {
+            AVPacketSideData *sd = &st->codecpar->coded_side_data[i];
+
+            if (sd->type == AV_PKT_DATA_DISPLAYMATRIX && sd->size >= 9*4) {
+                theta = -av_display_rotation_get((int32_t *)sd->data);
+                if (std::isnan(theta))
+                    theta = 0;
+                
+                break;
+            }
+        }
+    }
+    
+    theta -= 360*floor(theta/360 + 0.9/360);
+
+    return theta;
 }
 
 std::string gen_rational_str(AVRational rational, char sep)
