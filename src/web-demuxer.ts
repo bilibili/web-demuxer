@@ -15,6 +15,15 @@ import {
   MEDIA_TYPE_TO_AVMEDIA_TYPE,
 } from "./types";
 import WasmWorker from "./wasm.worker.ts?worker&inline";
+import {
+  inlineGetAVPacket,
+  inlineGetAVPackets,
+  inlineGetAVStream,
+  inlineGetAVStreams,
+  inlineGetMediaInfo,
+  inlineSetAVLogLevel,
+  loadInlineModule,
+} from "./inline-transport";
 
 const TIME_BASE = 1e6;
 
@@ -23,6 +32,11 @@ export interface WebDemuxerOptions {
    * custom wasm file path
    */
   wasmFilePath?: string;
+  /**
+   * disable internal worker — runs inline on main thread
+   * @default true
+   */
+  worker?: boolean;
 }
 
 /**
@@ -32,43 +46,63 @@ export interface WebDemuxerOptions {
  *
  * @example
  * ```typescript
+ * // Default: uses internal worker (backward compatible)
  * const demuxer = new WebDemuxer();
+ * 
+ * // Inline mode: no internal worker — safe inside Web Workers
+ * const demuxer = new WebDemuxer({ worker: false });
+ * 
  * await demuxer.load(file);
  * const encodedChunk = await demuxer.seek('video', 10);
  * ```
  */
 export class WebDemuxer {
-  private wasmWorker: Worker;
+  private wasmWorker?: Worker;
+  private inlineModule?: any;
   private wasmWorkerLoadStatus: Promise<void>;
   private msgId: number;
+  private useWorker: boolean;
 
   public source?: File | string;
 
   constructor(options?: WebDemuxerOptions) {
-    this.wasmWorker = new WasmWorker({
-      name: 'web-demuxer'
-    });
-    this.wasmWorkerLoadStatus = new Promise((resolve, reject) => {
-      this.wasmWorker.addEventListener("message", (e) => {
-        const { type, errMsg } = e.data;
-
-        if (type === WasmWorkerMessageType.WasmWorkerLoaded) {
-          this.post(WasmWorkerMessageType.LoadWASM, {
-            wasmFilePath: options?.wasmFilePath,
-          });
-        }
-
-        if (type === WasmWorkerMessageType.WASMRuntimeInitialized) {
-          resolve();
-        }
-
-        if (type === WasmWorkerMessageType.LoadWASM && errMsg) {
-          reject(errMsg);
-        }
-      });
-    });
-
+    this.useWorker = options?.worker !== false; // default true for backward compat
     this.msgId = 0;
+
+    if (this.useWorker) {
+      this.wasmWorker = new WasmWorker({
+        name: 'web-demuxer'
+      });
+      this.wasmWorkerLoadStatus = new Promise((resolve, reject) => {
+        this.wasmWorker!.addEventListener("message", (e) => {
+          const { type, errMsg } = e.data;
+
+          if (type === WasmWorkerMessageType.WasmWorkerLoaded) {
+            this.post(WasmWorkerMessageType.LoadWASM, {
+              wasmFilePath: options?.wasmFilePath,
+            });
+          }
+
+          if (type === WasmWorkerMessageType.WASMRuntimeInitialized) {
+            resolve();
+          }
+
+          if (type === WasmWorkerMessageType.LoadWASM && errMsg) {
+            reject(errMsg);
+          }
+        });
+      });
+    } else {
+      // Inline runtime — same WASM module as the worker, loaded directly
+      // on the current thread (see ./inline-transport.ts). Streaming
+      // (readAVPacket) stays worker-only, see below.
+      this.wasmWorker = undefined;
+      this.wasmWorkerLoadStatus = loadInlineModule(
+        options?.wasmFilePath,
+      ).then((module) => {
+        this.inlineModule = module;
+      });
+    }
   }
 
   private post(
@@ -76,17 +110,29 @@ export class WebDemuxer {
     data?: WasmWorkerMessageData,
     msgId?: number,
   ) {
-    this.wasmWorker.postMessage({
-      type,
-      msgId: msgId ?? this.msgId++,
-      data,
-    });
+    if (this.wasmWorker) {
+      this.wasmWorker.postMessage({
+        type,
+        msgId: msgId ?? this.msgId++,
+        data,
+      });
+    }
   }
 
   private getFromWorker<T>(type: WasmWorkerMessageType, msgData: WasmWorkerMessageData): Promise<T> {
     return new Promise((resolve, reject) => {
       if (!this.source) {
         reject("source is not loaded. call load() first");
+        return;
+      }
+
+      if (!this.useWorker) {
+        this.getFromInline<T>(type, msgData).then(resolve, reject);
+        return;
+      }
+
+      if (!this.wasmWorker) {
+        reject("Worker failed to initialize.");
         return;
       }
 
@@ -98,7 +144,7 @@ export class WebDemuxer {
           } else {
             resolve(data.result);
           }
-          this.wasmWorker.removeEventListener("message", msgListener);
+          this.wasmWorker!.removeEventListener("message", msgListener);
         }
       };
 
@@ -108,23 +154,88 @@ export class WebDemuxer {
   }
 
   /**
+   * Inline equivalent of `getFromWorker` — calls the WASM module directly
+   * on the current thread instead of round-tripping through a `Worker`.
+   * Error semantics match the worker path (rejected with the thrown
+   * message, mirroring the worker's `errMsg`).
+   */
+  private async getFromInline<T>(
+    type: WasmWorkerMessageType,
+    msgData: WasmWorkerMessageData,
+  ): Promise<T> {
+    await this.wasmWorkerLoadStatus;
+
+    if (!this.inlineModule) {
+      throw new Error("Inline WASM module failed to load.");
+    }
+
+    try {
+      switch (type) {
+        case WasmWorkerMessageType.GetAVStream:
+          return inlineGetAVStream(this.inlineModule, msgData as {
+            source: File | string;
+            streamType: AVMediaType;
+            streamIndex: number;
+          }) as T;
+        case WasmWorkerMessageType.GetAVStreams:
+          return inlineGetAVStreams(this.inlineModule, msgData as {
+            source: File | string;
+          }) as T;
+        case WasmWorkerMessageType.GetMediaInfo:
+          return inlineGetMediaInfo(this.inlineModule, msgData as {
+            source: File | string;
+          }) as T;
+        case WasmWorkerMessageType.GetAVPacket:
+          return inlineGetAVPacket(this.inlineModule, msgData as {
+            source: File | string;
+            time: number;
+            streamType: AVMediaType;
+            streamIndex: number;
+            seekFlag: AVSeekFlag;
+          }) as T;
+        case WasmWorkerMessageType.GetAVPackets:
+          return inlineGetAVPackets(this.inlineModule, msgData as {
+            source: File | string;
+            time: number;
+            seekFlag: AVSeekFlag;
+          }) as T;
+        case WasmWorkerMessageType.SetAVLogLevel:
+          inlineSetAVLogLevel(this.inlineModule, msgData as {
+            level: AVLogLevel;
+          });
+          return undefined as T;
+        default:
+          throw new Error(
+            `Inline mode does not support ${type}. ` +
+              "Streaming (ReadAVPacket) requires worker: true.",
+          );
+      }
+    } catch (e) {
+      throw e instanceof Error ? e.message : "Unknown Error";
+    }
+  }
+
+  /**
    * Load a file for demuxing
    * @param source source to load
    * @returns load status
    */
   public async load(source: File | string) {
     await this.wasmWorkerLoadStatus;
-
     this.source = source;
   }
 
   /**
    * Destroy the demuxer instance
-   * terminate the worker
+   * terminate the worker (worker mode) or drop the inline module
+   * reference so it can be garbage-collected (inline mode)
    */
   public destroy() {
     this.source = undefined;
-    this.wasmWorker.terminate();
+    if (this.wasmWorker) {
+      this.wasmWorker.terminate();
+    }
+    this.inlineModule = undefined;
   }
 
   // ================ Base API ================
@@ -222,6 +333,12 @@ export class WebDemuxer {
     streamIndex = -1,
     seekFlag = AVSeekFlag.AVSEEK_FLAG_BACKWARD
   ): ReadableStream<WebAVPacket> {
+    if (!this.wasmWorker) {
+      throw new Error(
+        "Streaming requires worker mode. Set worker: true or use getAVPacket() for inline mode."
+      );
+    }
+
     const queueingStrategy = new CountQueuingStrategy({ highWaterMark: 1 });
     const msgId = this.msgId;
     let pullCounter = 0;
@@ -244,7 +361,7 @@ export class WebDemuxer {
             ) {
               if (data.errMsg) {
                 controller.error(data.errMsg);
-                this.wasmWorker.removeEventListener("message", msgListener);
+                this.wasmWorker!.removeEventListener("message", msgListener);
               } else {
                 // noop
               }
@@ -257,7 +374,7 @@ export class WebDemuxer {
               if (data.result && !cancelResolver) {
                 controller.enqueue(data.result);
               } else {
-                this.wasmWorker.removeEventListener("message", msgListener);
+                this.wasmWorker!.removeEventListener("message", msgListener);
                 // only close if the stream has not been cancelled from outside
                 if (cancelResolver) {
                   cancelResolver();
