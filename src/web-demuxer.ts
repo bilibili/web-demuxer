@@ -15,6 +15,15 @@ import {
   MEDIA_TYPE_TO_AVMEDIA_TYPE,
 } from "./types";
 import WasmWorker from "./wasm.worker.ts?worker&inline";
+import {
+  inlineGetAVPacket,
+  inlineGetAVPackets,
+  inlineGetAVStream,
+  inlineGetAVStreams,
+  inlineGetMediaInfo,
+  inlineSetAVLogLevel,
+  loadInlineModule,
+} from "./inline-transport";
 
 const TIME_BASE = 1e6;
 
@@ -49,6 +58,7 @@ export interface WebDemuxerOptions {
  */
 export class WebDemuxer {
   private wasmWorker?: Worker;
+  private inlineModule?: any;
   private wasmWorkerLoadStatus: Promise<void>;
   private msgId: number;
   private useWorker: boolean;
@@ -83,9 +93,15 @@ export class WebDemuxer {
         });
       });
     } else {
-      // Inline runtime — no worker
+      // Inline runtime — same WASM module as the worker, loaded directly
+      // on the current thread (see ./inline-transport.ts). Streaming
+      // (readAVPacket) stays worker-only, see below.
       this.wasmWorker = undefined;
-      this.wasmWorkerLoadStatus = Promise.resolve();
+      this.wasmWorkerLoadStatus = loadInlineModule(
+        options?.wasmFilePath,
+      ).then((module) => {
+        this.inlineModule = module;
+      });
     }
   }
 
@@ -105,12 +121,18 @@ export class WebDemuxer {
 
   private getFromWorker<T>(type: WasmWorkerMessageType, msgData: WasmWorkerMessageData): Promise<T> {
     return new Promise((resolve, reject) => {
-      if (!this.wasmWorker) {
-        reject("Worker is disabled. Use worker: true or run on main thread.");
-        return;
-      }
       if (!this.source) {
         reject("source is not loaded. call load() first");
+        return;
+      }
+
+      if (!this.useWorker) {
+        this.getFromInline<T>(type, msgData).then(resolve, reject);
+        return;
+      }
+
+      if (!this.wasmWorker) {
+        reject("Worker failed to initialize.");
         return;
       }
 
@@ -132,6 +154,68 @@ export class WebDemuxer {
   }
 
   /**
+   * Inline equivalent of `getFromWorker` — calls the WASM module directly
+   * on the current thread instead of round-tripping through a `Worker`.
+   * Error semantics match the worker path (rejected with the thrown
+   * message, mirroring the worker's `errMsg`).
+   */
+  private async getFromInline<T>(
+    type: WasmWorkerMessageType,
+    msgData: WasmWorkerMessageData,
+  ): Promise<T> {
+    await this.wasmWorkerLoadStatus;
+
+    if (!this.inlineModule) {
+      throw new Error("Inline WASM module failed to load.");
+    }
+
+    try {
+      switch (type) {
+        case WasmWorkerMessageType.GetAVStream:
+          return inlineGetAVStream(this.inlineModule, msgData as {
+            source: File | string;
+            streamType: AVMediaType;
+            streamIndex: number;
+          }) as T;
+        case WasmWorkerMessageType.GetAVStreams:
+          return inlineGetAVStreams(this.inlineModule, msgData as {
+            source: File | string;
+          }) as T;
+        case WasmWorkerMessageType.GetMediaInfo:
+          return inlineGetMediaInfo(this.inlineModule, msgData as {
+            source: File | string;
+          }) as T;
+        case WasmWorkerMessageType.GetAVPacket:
+          return inlineGetAVPacket(this.inlineModule, msgData as {
+            source: File | string;
+            time: number;
+            streamType: AVMediaType;
+            streamIndex: number;
+            seekFlag: AVSeekFlag;
+          }) as T;
+        case WasmWorkerMessageType.GetAVPackets:
+          return inlineGetAVPackets(this.inlineModule, msgData as {
+            source: File | string;
+            time: number;
+            seekFlag: AVSeekFlag;
+          }) as T;
+        case WasmWorkerMessageType.SetAVLogLevel:
+          inlineSetAVLogLevel(this.inlineModule, msgData as {
+            level: AVLogLevel;
+          });
+          return undefined as T;
+        default:
+          throw new Error(
+            `Inline mode does not support ${type}. ` +
+              "Streaming (ReadAVPacket) requires worker: true.",
+          );
+      }
+    } catch (e) {
+      throw e instanceof Error ? e.message : "Unknown Error";
+    }
+  }
+
+  /**
    * Load a file for demuxing
    * @param source source to load
    * @returns load status
@@ -143,13 +227,15 @@ export class WebDemuxer {
 
   /**
    * Destroy the demuxer instance
-   * terminate the worker
+   * terminate the worker (worker mode) or drop the inline module
+   * reference so it can be garbage-collected (inline mode)
    */
   public destroy() {
     this.source = undefined;
     if (this.wasmWorker) {
       this.wasmWorker.terminate();
     }
+    this.inlineModule = undefined;
   }
 
   // ================ Base API ================
